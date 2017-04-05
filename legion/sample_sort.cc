@@ -36,6 +36,7 @@ enum TaskIDs {
   INIT_FIELD_TASK_ID,
   QSORT_TASK_ID,
   ONE_TASK_ID,
+  P_BUCKET_TASK_ID,
 };
 
 enum FieldIDs {
@@ -77,6 +78,11 @@ void top_level_task(const Task *task,
                           Domain::from_rect<1>(test_rect));
   runtime->attach_name(is_splitter, "is_splitter");
 
+  Rect<1> g_split_rect(Point<1>(0), Point<1>(num_subregions-2));
+  IndexSpace is_g_split = runtime->create_index_space(ctx,
+                          Domain::from_rect<1>(g_split_rect));
+  runtime->attach_name(is_g_split, "is_g_split");
+
   FieldSpace input_fs = runtime->create_field_space(ctx);
   runtime->attach_name(input_fs, "input_fs");
   {
@@ -86,6 +92,8 @@ void top_level_task(const Task *task,
     runtime->attach_name(input_fs, FID_X, "X");
   }
   
+
+  // TODO: Clean up code, use one field space
   FieldSpace output_fs = runtime->create_field_space(ctx);
   runtime->attach_name(output_fs, "output_fs");
   {
@@ -112,6 +120,8 @@ void top_level_task(const Task *task,
   runtime->attach_name(output_lr, "output_lr");
   LogicalRegion splitter_lr = runtime->create_logical_region(ctx, is_splitter, splitter_fs);
   runtime->attach_name(splitter_lr, "splitter_lr");
+  LogicalRegion g_splitters_lr = runtime->create_logical_region(ctx, is_g_split, splitter_fs);
+  runtime->attach_name(g_splitters_lr, "g_splitters_lr");
 
   // In addition to using rectangles and domains for launching index spaces
   // of tasks (see example 02), Legion also uses them for performing 
@@ -307,8 +317,15 @@ void top_level_task(const Task *task,
                         WRITE_DISCARD, EXCLUSIVE, splitter_lr));
   qsort_launcher.region_requirements[1].add_field(FID_S);
   runtime->execute_index_space(ctx, qsort_launcher);
-
-
+/*
+  TaskLauncher p_bucket_task_launcher(ONE_TASK_ID, TaskArgument(&num_subregions, sizeof(num_subregions)));
+  p_bucket_task_launcher.add_region_requirement(
+      RegionRequirement(input_lr, READ_ONLY, EXCLUSIVE, input_lr));
+  p_bucket_task_launcher.region_requirements[0].add_field(FID_X);
+  p_bucket_task_launcher.add_region_requirement(
+      RegionRequirement(splitter_lr, READ_ONLY, EXCLUSIVE, splitter_lr));
+  p_bucket_task_launcher.region_requirements[1].add_field(FID_S);
+  runtime->execute_task(ctx, p_bucket_task_launcher);*/
 
   TaskLauncher check_launcher(ONE_TASK_ID, TaskArgument(&num_subregions, sizeof(num_subregions)));
   check_launcher.add_region_requirement(
@@ -317,6 +334,9 @@ void top_level_task(const Task *task,
   check_launcher.add_region_requirement(
       RegionRequirement(splitter_lr, READ_ONLY, EXCLUSIVE, splitter_lr));
   check_launcher.region_requirements[1].add_field(FID_S);
+  check_launcher.add_region_requirement(
+      RegionRequirement(g_splitters_lr, WRITE_DISCARD, EXCLUSIVE, g_splitters_lr));
+  check_launcher.region_requirements[2].add_field(FID_S);
   runtime->execute_task(ctx, check_launcher);
   
   // While we could also issue parallel subtasks for the checking
@@ -456,13 +476,33 @@ void qsort_task(const Task *task,
   }
 
 }
+void p_bucket_task(const Task *task,
+                const std::vector<PhysicalRegion> &regions,
+                Context ctx, Runtime *runtime)
+{
+  int * params = (int*) task->args;
+
+  const int num_subregions = * params;
+  printf("num_subregions = %d\n", num_subregions);
+  int * pivots = new int[num_subregions-1];
+  for (int i = 1; i < num_subregions; i++){
+    pivots[i-1] = * (params + i);
+    printf("pivots[%d] = %d\n", i-1, pivots[i-1]);
+  }
+
+  /*
+  RegionAccessor<AccessorType::Generic, int> acc_x = 
+    regions[0].get_field_accessor(FID_X).typeify<int>();*/
+
+}
+
 
 void one_task(const Task *task,
                 const std::vector<PhysicalRegion> &regions,
                 Context ctx, Runtime *runtime)
 {
-  assert(regions.size() == 2);
-  assert(task->regions.size() == 2);
+  assert(regions.size() == 3);
+  assert(task->regions.size() == 3);
   const int num_subregions = *((const int*)task->args);
 
   RegionAccessor<AccessorType::Generic, int> acc_x = 
@@ -470,6 +510,9 @@ void one_task(const Task *task,
   
   RegionAccessor<AccessorType::Generic, int> acc_s = 
     regions[1].get_field_accessor(FID_S).typeify<int>();
+
+  RegionAccessor<AccessorType::Generic, int> acc_g = 
+    regions[2].get_field_accessor(FID_S).typeify<int>();
 
   printf("\n\n\n\n\nPicking splitters...\n");
   Domain dom = runtime->get_index_space_domain(ctx, 
@@ -487,10 +530,6 @@ void one_task(const Task *task,
   void * split_ptr = acc_s.raw_rect_ptr<1>(split_rect, sub_rect, &byte_offset);
   qsort(split_ptr, num_subregions*(num_subregions-1), sizeof(int), compare);
 
-  // Choose global splitters
-  for (int i = 0; i < num_subregions-1; i++){
-    
-  }
 
   for (GenericPointInRectIterator<1> pir(rect); pir; pir++)
   {
@@ -503,12 +542,34 @@ void one_task(const Task *task,
     int expected = acc_s.read(DomainPoint::from_point<1>(pir.p));
     printf("Splitter Value is %d\n", expected);
   }
+
+
+
+  // Choose global splitters
+  Domain dom_g_split = runtime->get_index_space_domain(ctx,
+    task->regions[2].region.get_index_space());
+  Rect<1> g_split_rect = dom_g_split.get_rect<1>();
+  Rect<1> sub_g_split_rect;
+  int * g_split_ptr = (int *) (acc_g.raw_rect_ptr<1>(g_split_rect, sub_g_split_rect, &byte_offset));
+
+  for (int i = 0; i < num_subregions-1; i++){
+
+      g_split_ptr[i] = ((int*)(split_ptr))[(num_subregions-1)*(i+1)];
+  }
+
+  for (GenericPointInRectIterator<1> pir(g_split_rect); pir; pir++)
+  {
+    int expected = acc_g.read(DomainPoint::from_point<1>(pir.p));
+    printf("Global Splitter Value is %d\n", expected);
+  }
+
 }
 
 
 int main(int argc, char **argv)
 {
   Runtime::set_top_level_task_id(TOP_LEVEL_TASK_ID);
+
   Runtime::register_legion_task<top_level_task>(TOP_LEVEL_TASK_ID,
       Processor::LOC_PROC, true/*single*/, false/*index*/,
       AUTO_GENERATE_ID, TaskConfigOptions(), "top_level");
@@ -521,6 +582,10 @@ int main(int argc, char **argv)
   Runtime::register_legion_task<qsort_task>(QSORT_TASK_ID,
       Processor::LOC_PROC, true/*single*/, true/*index*/,
       AUTO_GENERATE_ID, TaskConfigOptions(true), "qsort");
+  
+  Runtime::register_legion_task<p_bucket_task>(P_BUCKET_TASK_ID,
+      Processor::LOC_PROC, true/*single*/, true/*index*/,
+      AUTO_GENERATE_ID, TaskConfigOptions(true), "p_bucket_task");
 
   Runtime::register_legion_task<one_task>(ONE_TASK_ID,
       Processor::LOC_PROC, true/*single*/, true/*index*/,
