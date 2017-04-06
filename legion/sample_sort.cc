@@ -93,7 +93,8 @@ void top_level_task(const Task *task,
   runtime->attach_name(is_g_split, "is_g_split");
 
   // Element Index for Buckets  
-  Rect<1> i_split_rect(Point<1>(0), Point<1>((num_subregions * num_subregions) - 1));
+  int number_of_buckets = (num_subregions*num_subregions) - 1;
+  Rect<1> i_split_rect(Point<1>(0), Point<1>(number_of_buckets));
   IndexSpace is_i_split =  runtime->create_index_space(ctx,
                               Domain::from_rect<1>(i_split_rect));
   runtime->attach_name(is_i_split, "is_i_split");
@@ -284,9 +285,10 @@ void top_level_task(const Task *task,
 
   Blockify<1> coloring(num_subregions-1);
   ip_splitter = runtime->create_index_partition(ctx, is_l_split, coloring);
-  ip_index    = runtime->create_index_partition(ctx, is_i_split, coloring);
+  Blockify<1> bucket_coloring(num_subregions);
+  ip_index    = runtime->create_index_partition(ctx, is_i_split, bucket_coloring);
   runtime->attach_name(ip_splitter, "ip_splitter");
-
+  runtime->attach_name(ip_index, "ip_index");
   // The index space 'is' was used in creating two logical regions: 'input_lr'
   // and 'output_lr'.  By creating an IndexPartitiong of 'is' we implicitly
   // created a LogicalPartition for each of the logical regions created using
@@ -406,6 +408,7 @@ void top_level_task(const Task *task,
       RegionRequirement(input_lp, 0,
                         READ_ONLY, EXCLUSIVE, input_lr));
 p_bucket_task_launcher.region_requirements[0].add_field(FID_X);
+
  p_bucket_task_launcher.add_region_requirement(
       RegionRequirement(g_splitters_lr, READ_ONLY, EXCLUSIVE, g_splitters_lr));
   p_bucket_task_launcher.region_requirements[1].add_field(FID_X);
@@ -565,31 +568,120 @@ void p_bucket_task(const Task *task,
                 Context ctx, Runtime *runtime)
 {
 
+  FieldID fid_input  = *(task->regions[0].privilege_fields.begin());
+  FieldID fid_split  = *(task->regions[1].privilege_fields.begin());
+  FieldID fid_bucket = *(task->regions[2].privilege_fields.begin());
+
   RegionAccessor<AccessorType::Generic, int> acc_input = 
-    regions[0].get_field_accessor(FID_X).typeify<int>();
+    regions[0].get_field_accessor(fid_input).typeify<int>();
 
   RegionAccessor<AccessorType::Generic, int> acc_split = 
-    regions[1].get_field_accessor(FID_X).typeify<int>();
+    regions[1].get_field_accessor(fid_split).typeify<int>();
 
-  RegionAccessor<AccessorType::Generic, int> acc_index_bucket = 
-    regions[2].get_field_accessor(FID_X).typeify<int>();
+  RegionAccessor<AccessorType::Generic, int> acc_bucket = 
+    regions[2].get_field_accessor(fid_bucket).typeify<int>();
 
-  Domain input_domain = acc_input.get_index_space_domain(ctx,
-      task->regions[0].region.get_index_space);
+
+  LegionRuntime::Accessor::ByteOffset byte_offset(0);
+
+  // Accessor for input
+  Domain input_domain = runtime->get_index_space_domain(ctx,
+      task->regions[0].region.get_index_space());
   Rect<1> input_rect = input_domain.get_rect<1>();
 
-
-  Domain splitter_domain = acc_split.get_index_space_domain(ctx,
-      task->regions[1].region.get_index_space);
+  // Accessor for splitters
+  Domain splitter_domain = runtime->get_index_space_domain(ctx,
+      task->regions[1].region.get_index_space());
   Rect<1> split_rect = splitter_domain.get_rect<1>();
   Rect<1> sub_rect;
-  LegionRuntime::Accessor::ByteOffset byte_offset(0)
   
-  int * splitter_ptr = (int *) acc_split.raw_rect_ptr<1>(split_rect, sub_rect, &byte_offset);
+/*  int * splitter_ptr = (int *) acc_split.raw_rect_ptr<1>(split_rect, sub_rect, &byte_offset);
+  assert (split_rect == sub_rect);*/
 
-  for (GenericPointInRectIterator<1>(input_rect); pir; pir++) {
+  // Accessor for bucket
+  Domain bucket_domain = runtime->get_index_space_domain(ctx,
+      task->regions[2].region.get_index_space());
+  Rect<1> bucket_rect = bucket_domain.get_rect<1>();
+  Rect<1> sub_rect2;
+/*  int * bucket_ptr = (int *) acc_bucket.raw_rect_ptr<1>(bucket_rect, sub_rect2, &byte_offset);
+  assert(bucket_rect == sub_rect2);*/
 
+  GenericPointInRectIterator<1>split_iter(split_rect);
+  GenericPointInRectIterator<1>bucket_iter(bucket_rect);
+  GenericPointInRectIterator<1>input_iter(input_rect);
+  // Initialize all index with -1
+  for (GenericPointInRectIterator<1>pir(bucket_rect); pir; pir++) {
+    acc_bucket.write(DomainPoint::from_point<1>(pir.p), -1);
   }
+
+  int currentIndex = 0;
+  bool first = true, last = true;
+  bool first_encounter = true;
+
+
+
+  for (GenericPointInRectIterator<1>pir(input_rect); pir; pir++) {
+
+    int value          = acc_input.read(DomainPoint::from_point<1>(pir.p));
+    int bucket_value   = acc_bucket.read(DomainPoint::from_point<1>(bucket_iter.p));
+    int splitter_value = acc_split.read(DomainPoint::from_point<1>(split_iter.p));
+
+    if (value < splitter_value) {
+      acc_bucket.write(DomainPoint::from_point<1>(bucket_iter.p), currentIndex);
+      bucket_iter++;
+      while (value < splitter_value) {
+        printf("value = %d, splitter_value = %d\n", value, splitter_value);
+        pir++;
+        currentIndex++;
+        if (!pir)
+          break;
+        value = acc_input.read(DomainPoint::from_point<1>(pir.p));
+      }
+    }
+    if (! pir)
+      break;
+
+    GenericPointInRectIterator<1>next_split_iter(split_iter);
+    next_split_iter++;
+    if (!next_split_iter) {
+      acc_bucket.write(DomainPoint::from_point<1>(bucket_iter.p), currentIndex);
+      break;
+    }
+    int next_split_value = acc_split.read(DomainPoint::from_point<1>(next_split_iter.p));
+    printf("value = %d, splitter_value = %d, next_split_value = %d\n", value, splitter_value, next_split_value);
+    if (value >= splitter_value && value < next_split_value) {
+      acc_bucket.write(DomainPoint::from_point<1>(bucket_iter.p), currentIndex);
+      while (value >= splitter_value && value < next_split_value) {
+        pir++;
+        currentIndex++;
+        if (!pir)
+          break;
+        value = acc_input.read(DomainPoint::from_point<1>(pir.p));
+      }
+      if (! pir)
+        break;
+    }
+    else {
+      while (value > next_split_value) {
+        bucket_iter++;
+        split_iter++;
+        next_split_iter++;
+        next_split_value = acc_split.read(DomainPoint::from_point<1>(next_split_iter.p));
+        if (!next_split_iter)
+          break;
+      }
+
+    }
+    currentIndex++;
+  }
+
+  currentIndex = 0;
+  for (GenericPointInRectIterator<1>pir(bucket_rect); pir; pir++) {
+      int value = acc_bucket.read(DomainPoint::from_point<1>(pir.p));
+      printf("Bucket[%d] = %d\n", currentIndex, value);
+      currentIndex++;
+  }
+
 }
 
 
