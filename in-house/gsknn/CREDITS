@@ -1,0 +1,21 @@
+
+GSKNN (General Stride K-Nearest Neighbor)
+Acknowledgements
+---
+
+The GSKNN library was primarily authored by
+
+  Chenhan D. Yu             (The University of Texas at Austin)
+
+but many others have contributed input and feedback, including:
+
+  Field Van Zee             (The University of Texas at Austin)
+  Jianyu Huang              (The University of Texas at Austin)
+  Woody Austin              (The University of Texas at Austin)
+  George Biros              (The University of Texas at Austin)
+
+The gratitude especially goes to the following individual who devote
+their time in this project.
+
+  Jianyu Huang              (The University of Texas at Austin)
+  Woody Austin              (The University of Texas at Austin)

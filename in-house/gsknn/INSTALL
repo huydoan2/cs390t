@@ -1,0 +1,90 @@
+
+GSKNN (General Stride K-Nearest Neighbor)
+INSTALL
+---
+
+GSKNN is tested on LINUX and OSX.
+Compilation REQUIRES Intel or GNU compilers with AVX and OpenMP support.
+
+
+Configuration: 
+--------------
+
+Edit set_env.sh for compilation options. 
+
+Set GSKNN_USE_INTEL = true  to use Intel compilers (make.intel.inc).
+Set GSKNN_USE_INTEL = false to use GNU compilers   (make.gnu.inc).
+Set GSKNN_USE_BLAS  = false if you don't have a BLAS library.
+
+The default BLAS library for Intel compiler is MKL, and the 
+default BLAS for GNU is Netlib (-lblas).
+If you want to use other implementations, change set_env.sh, 
+makefile, make.inc accordingly.
+
+
+Installation:
+-------------
+
+Use the standard makefile:
+>source set_env.sh
+>make
+
+Use cmake:
+>source set_env.sh
+>mkdir build
+>cd build
+>cmake ..
+>make
+>make install
+
+
+Testing and compilation example:
+--------------------------------
+
+The default compilation will also compile all the test drivers. 
+To run some basic examples from the testing drivers:
+
+>cd test
+>./run_gsknn.sh
+
+To embed GSKNN in a specific application, you need to include the
+header files <gsknn.h> and make the right function calls. 
+GSKNN can be linked statically with lib/libgsknn.a or dynamically
+using -lgsknn.
+
+Include head files:
+...
+#include <gsknn.h>
+...
+
+Link:
+>icc ... -I$(GSKNN_DIR)/include $(GSKNN_DIR)/lib/libgsknn.a
+
+We also provide simple python wrappers to invoke gsknn and its reference
+kernels. These wrappers reside in /python, and they require the support
+of numpy. See /python/example.py for their usages. To use the four functions 
+in the /python/gsknn.py module,
+
+...
+import numpy
+From gsknn import *
+...
+
+Make sure you assign the right type ro each numpy ndarray and make the
+right function call. If your floating point data type is numpy.double,
+then call dgsknn. If it's numpy.float32, then call sgsknn instead.
+
+
+Note:
+-----
+
+The numerical accruacy of the 2-norm and 1-norm depends on the rank-k
+update implementation and compiler optimization. When some points are
+very close to each other, round-off errors will lead to different 
+neighbors between gsknn and the reference kernel.
+
+GSKNN currntly only support Intel Sandy-Bridge and its successors.
+Double precision is optimized on Sandy-Bridge and Ivy-Bridge processors,
+but these kernels are not optimized on Haswell and Skylake.
+We are working on extending our support to single precision and
+providing more optimized kernels.

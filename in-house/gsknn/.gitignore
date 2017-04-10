@@ -1,0 +1,9 @@
+*~
+*.swp
+*.x
+*.o
+*.a
+*.so
+*.log
+*.pyc
+build
