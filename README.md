@@ -8,6 +8,6 @@ starPU Setup
 2. Install hwloc
 ⋅⋅* `sudo apt-get install hwloc`
 3. In starPU folder, make and install
-⋅⋅*  `$ ./configure`
-⋅⋅*  `$ make`
-⋅⋅*  `$ make install`
+⋅⋅* `$ ./configure`
+⋅⋅* `$ make`
+⋅⋅* `$ make install`
