@@ -1,18 +1,3 @@
-/* Copyright 2017 Stanford University
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 
 #include <cstdio>
 #include <cassert>
@@ -20,16 +5,17 @@
 #include "legion.h"
 #include "legion_stl.h"
 #include <stdlib.h>
+#include <fstream>
+#include <string>
+#include <iostream>
+#include <vector>
+#include <sstream>
 
 using namespace Legion;
 using namespace LegionRuntime::Accessor;
 using namespace LegionRuntime::Accessor::AccessorType;
-// Legion has a separate namespace which contains
-// some useful abstractions for operations on arrays.
-// Unsurprisingly it is called the Arrays namespace.
-// We'll see an example of one of these operations
-// in this example.
 using namespace LegionRuntime::Arrays;
+using namespace std;
 
 enum TaskIDs {
   TOP_LEVEL_TASK_ID,
@@ -38,38 +24,67 @@ enum TaskIDs {
   ONE_TASK_ID,
   P_BUCKET_TASK_ID,
   QSORT_BUCKET_ID,
+  CHECKER_TASK_ID,
 };
 
 enum FieldIDs {
   FID_X,
-  FID_S,
-  FID_G,
-  FID_E,
-  FID_Z,
 };
+
+void readFile(std::string fileName, std::vector<int> &vect, const bool DEBUG_ON){
+  ifstream in(fileName.c_str());
+  stringstream buffer;
+  buffer << in.rdbuf();
+
+    int i;
+    while(buffer >> i) {
+
+        vect.push_back(i);
+        if (buffer.peek() == ',') {
+            buffer.ignore();
+        }
+    }
+
+    if (DEBUG_ON) {
+    printf("Vector read in is: \n");
+    for (int i = 0; i < vect.size(); i++){
+      printf("%d ", vect.at(i));
+    }
+    printf("\n");
+  }
+}
+
 
 void top_level_task(const Task *task,
                     const std::vector<PhysicalRegion> &regions,
                     Context ctx, Runtime *runtime)
 {
-  int num_elements = 20; 
-  int num_subregions = 4;
-  // See if we have any command line arguments to parse
-  // Note we now have a new command line parameter which specifies
-  // how many subregions we should make.
+   
+  std::string file_name;
+  std::vector<int> input_array;
+  const bool DEBUG_ON = false;
+  int array_size = 0;
+  int num_subregions = 10;
+
   {
     const InputArgs &command_args = Runtime::get_input_args();
     for (int i = 1; i < command_args.argc; i++)
     {
       if (!strcmp(command_args.argv[i],"-n"))
-        num_elements = atoi(command_args.argv[++i]);
-      if (!strcmp(command_args.argv[i],"-b"))
         num_subregions = atoi(command_args.argv[++i]);
+      if (!strcmp(command_args.argv[i],"-f"))
+        file_name = command_args.argv[++i];
+      if (!strcmp(command_args.argv[i],"-s"))
+        array_size = atoi(command_args.argv[++i]);
+
     }
   }
   printf("Partitioning data into %d sub-regions...\n", num_subregions);
-
-  // Create our logical regions using the same schemas as earlier examples
+  
+  printf("File name is %s\n", file_name.c_str());
+  printf("Size of input is %d\n", array_size);
+  
+  int num_elements = array_size;
 
   // ----------------- Index Spaces -----------------
 
@@ -95,7 +110,7 @@ void top_level_task(const Task *task,
 
   // Element Index for Buckets  
   int number_of_buckets = num_subregions*num_subregions;
-  int elements_per_bucket = num_elements/number_of_buckets;
+  //int elements_per_bucket = num_elements/number_of_buckets;
   Rect<1> i_split_rect(Point<1>(0), Point<1>(number_of_buckets - 1));
   IndexSpace is_i_split =  runtime->create_index_space(ctx,
                               Domain::from_rect<1>(i_split_rect));
@@ -117,51 +132,8 @@ void top_level_task(const Task *task,
     allocator.allocate_field(sizeof(int),FID_X);
     runtime->attach_name(input_fs, FID_X, "X");
   }
-/*  
-  // Output Field Space
-  FieldSpace output_fs = runtime->create_field_space(ctx);
-  runtime->attach_name(output_fs, "output_fs");
-  {
-    FieldAllocator allocator = 
-      runtime->create_field_allocator(ctx, output_fs);
-    allocator.allocate_field(sizeof(int),FID_Z);
-    runtime->attach_name(output_fs, FID_Z, "Z");
-  }
 
-  // Local Splitters Field Space
-  FieldSpace splitter_fs = runtime->create_field_space(ctx);
-  runtime->attach_name(splitter_fs, "splitter_fs");
-  {
-    FieldAllocator allocator =
-      runtime->create_field_allocator(ctx, splitter_fs);
-      allocator.allocate_field(sizeof(int), FID_S);
-      runtime->attach_name(splitter_fs, FID_S, "S");
-  }
-
-  // Global Splitters Field Space
-  FieldSpace bucket_fs = runtime->create_field_space(ctx);
-  runtime->attach_name(bucket_fs, "bucket_fs");
-  {
-    FieldAllocator allocator =
-      runtime->create_field_allocator(ctx, bucket_fs);
-      allocator.allocate_field(sizeof(int), FID_G);
-      runtime->attach_name(bucket_fs, FID_G, "G");
-  }
-
-  // Element Index Field Space
-  FieldSpace e_index_fs = runtime->create_field_space(ctx);
-  runtime->attach_name(e_index_fs, "e_index_fs");
-  {
-    FieldAllocator allocator = 
-      runtime->create_field_allocator(ctx, e_index_fs);
-      allocator.allocate_field(sizeof(int), FID_E);
-      runtime->attach_name(e_index_fs, FID_E, "E");
-  }
-  */
   // ------------------------------------------------------------
-
-
-
 
 
   // ----------------- Logical Regions -----------------------------
@@ -182,66 +154,22 @@ void top_level_task(const Task *task,
   runtime->attach_name(split_index_lr, "split_index_lr");
   // ------------------------------------------------------------
 
-  // In addition to using rectangles and domains for launching index spaces
-  // of tasks (see example 02), Legion also uses them for performing 
-  // operations on logical regions.  Here we create a rectangle and a
-  // corresponding domain for describing the space of subregions that we
-  // want to create.  Each subregion is assigned a 'color' which is why
-  // we name the variables 'color_bounds' and 'color_domain'.  We'll use
-  // these below when we partition the region.
   Rect<1> color_bounds(Point<1>(0),Point<1>(num_subregions-1));
   Domain color_domain = Domain::from_rect<1>(color_bounds);
 
-  // Parallelism in Legion is implicit.  This means that rather than
-  // explicitly saying what should run in parallel, Legion applications
-  // partition up data and tasks specify which regions they access.
-  // The Legion runtime computes non-interference as a function of 
-  // regions, fields, and privileges and then determines which tasks 
-  // are safe to run in parallel.
-  //
-  // Data partitioning is performed on index spaces.  The partitioning 
-  // operation is used to break an index space of points into subsets 
-  // of points each of which will become a sub index space.  Partitions 
-  // created on an index space are then transitively applied to all the 
-  // logical regions created using the index space.  We will show how
-  // to get names to the subregions later in this example.
-  //
-  // Here we want to create the IndexPartition 'ip'.  We'll illustrate
-  // two ways of creating an index partition depending on whether the
-  // array being partitioned can be evenly partitioned into subsets
-  // or not.  There are other methods to partitioning index spaces
-  // which are not covered here.  We'll cover the case of coloring
-  // individual points in an index space in our capstone circuit example.
+
   IndexPartition ip, ip_splitter, ip_index;
   if ((num_elements % num_subregions) != 0)
   {
-    // Not evenly divisible
-    // Create domain coloring to store the coloring
-    // maps from colors to domains for each subregion
-    //
-    // In this block of code we handle the case where the index space
-    // of points is not evenly divisible by the desired number of
-    // subregions.  This gives us the opportunity to illustrate a
-    // general approach to coloring arrays.  The general idea is
-    // to create a map from colors to sub-domains.  Colors correspond
-    // to the sub index spaces that will be made and each sub-domain
-    // describes the set points to be kept in that domain.
 
     // Computer upper and lower bounds on the number of elements per subregion
     const int lower_bound = num_elements/num_subregions;
     const int upper_bound = lower_bound+1;
     const int number_small = num_subregions - (num_elements % num_subregions);
-    // Create a coloring object to store the domain coloring.  A
-    // DomainColoring type is a typedef of an STL map from Colors
-    // (unsigned integers) to Domain objects and can be found in
-    // legion_types.h along with type declarations for all user-visible
-    // Legion types.
+
     DomainColoring coloring;
     int index = 0;
-    // We fill in the coloring by computing the domain of points
-    // to assign to each color.  We assign 'elmts_per_subregion'
-    // to all colors except the last one when we clamp the
-    // value to the maximum number of elements.
+
     for (int color = 0; color < num_subregions; color++)
     {
       int num_elmts = color < number_small ? lower_bound : upper_bound;
@@ -250,36 +178,12 @@ void top_level_task(const Task *task,
       coloring[color] = Domain::from_rect<1>(subrect);
       index += num_elmts;
     }
-    // Once we have computed our domain coloring we are now ready
-    // to create the partition.  Creating a partition simply
-    // involves giving the Legion runtime an index space to
-    // partition 'is', a domain of colors, and then a domain
-    // coloring.  In addition the application must specify whether
-    // the given partition is disjoint or not.  This example is
-    // a disjoint partition because there are no overlapping
-    // points between any of the sub index spaces.  In debug mode
-    // the runtime will check whether disjointness assertions
-    // actually hold.  In the next example we'll see an
-    // application which makes use of a non-disjoint partition.
+
     ip = runtime->create_index_partition(ctx, is_io, color_domain, 
                                       coloring, true/*disjoint*/);
   }
   else
   { 
-    // In the case where we know that the number of subregions
-    // evenly divides the number of elements, the Array namespace
-    // in Legion provide productivity constructs for partitioning
-    // an array.  Blockify is one example of these constructs.
-    // A Blockify will evenly divide a rectangle into subsets 
-    // containing the specified number of elements in each 
-    // dimension.  Since we are only dealing with a 1-D rectangle,
-    // we need only specify the number of elements to have
-    // in each subset.  A Blockify object is mapping from colors
-    // to subsets of an index space the same as a DomainColoring,
-    // but is implicitly disjoint.  The 'create_index_partition'
-    // method on the Legion runtime is overloaded a different
-    // instance of it takes mappings like Blockify and returns
-    // an IndexPartition.
     Blockify<1> coloring(num_elements/num_subregions);
     ip = runtime->create_index_partition(ctx, is_io, coloring);
   }
@@ -291,14 +195,7 @@ void top_level_task(const Task *task,
   ip_index    = runtime->create_index_partition(ctx, is_i_split, bucket_coloring);
   runtime->attach_name(ip_splitter, "ip_splitter");
   runtime->attach_name(ip_index, "ip_index");
-  // The index space 'is' was used in creating two logical regions: 'input_lr'
-  // and 'output_lr'.  By creating an IndexPartitiong of 'is' we implicitly
-  // created a LogicalPartition for each of the logical regions created using
-  // 'is'.  The Legion runtime provides several ways of getting the names for
-  // these LogicalPartitions.  We'll look at one of them here.  The
-  // 'get_logical_partition' method takes a LogicalRegion and an IndexPartition
-  // and returns the LogicalPartition of the given LogicalRegion that corresponds
-  // to the given IndexPartition.  
+ 
   LogicalPartition input_lp = runtime->get_logical_partition(ctx, input_lr, ip);
   runtime->attach_name(input_lp, "input_lp");
 
@@ -317,58 +214,13 @@ void top_level_task(const Task *task,
   Domain launch_domain = color_domain; 
   ArgumentMap arg_map;
 
-  // As in previous examples, we now want to launch tasks for initializing 
-  // both the fields.  However, to increase the amount of parallelism
-  // exposed to the runtime we will launch separate sub-tasks for each of
-  // the logical subregions created by our partitioning.  To express this
-  // we create an IndexLauncher for launching an index space of tasks
-  // the same as example 02.
-  IndexLauncher init_launcher(INIT_FIELD_TASK_ID, launch_domain, 
-                              TaskArgument(NULL, 0), arg_map);
-  // For index space task launches we don't want to have to explicitly
-  // enumerate separate region requirements for all points in our launch
-  // domain.  Instead Legion allows applications to place an upper bound
-  // on privileges required by subtasks and then specify which privileges
-  // each subtask receives using a projection function.  In the case of
-  // the field initialization task, we say that all the subtasks will be
-  // using some subregion of the LogicalPartition 'input_lp'.  Applications
-  // may also specify upper bounds using logical regions and not partitions.
-  //
-  // The Legion implementation assumes that all all points in an index
-  // space task launch request non-interfering privileges and for performance
-  // reasons this is unchecked.  This means if two tasks in the same index
-  // space are accessing aliased data, then they must either both be
-  // with read-only or reduce privileges.
-  //
-  // When the runtime enumerates the launch_domain, it will invoke the
-  // projection function for each point in the space and use the resulting
-  // LogicalRegion computed for each point in the index space of tasks.
-  // The projection ID '0' is reserved and corresponds to the identity 
-  // function which simply zips the space of tasks with the space of
-  // subregions in the partition.  Applications can register their own
-  // projections functions via the 'register_region_projection' and
-  // 'register_partition_projection' functions before starting 
-  // the runtime similar to how tasks are registered.
+  TaskLauncher init_launcher(INIT_FIELD_TASK_ID, TaskArgument(&file_name, sizeof(file_name)));
+
   init_launcher.add_region_requirement(
-      RegionRequirement(input_lp, 0/*projection ID*/, 
-                        WRITE_DISCARD, EXCLUSIVE, input_lr));
+      RegionRequirement(input_lr, WRITE_DISCARD, EXCLUSIVE, input_lr));
   init_launcher.region_requirements[0].add_field(FID_X);
-  runtime->execute_index_space(ctx, init_launcher);
+  runtime->execute_task(ctx, init_launcher);
 
-  // Modify our region requirement to initialize the other field
-  // in the same way.  Note that after we do this we have exposed
-  // 2*num_subregions task-level parallelism to the runtime because
-  // we have launched tasks that are both data-parallel on
-  // sub-regions and task-parallel on accessing different fields.
-  // The power of Legion is that it allows programmers to express
-  // these data usage patterns and automatically extracts both
-  // kinds of parallelism in a unified programming framework.
-  runtime->execute_index_space(ctx, init_launcher);
-
-  // We launch the subtasks for performing the daxpy computation
-  // in a similar way to the initialize field tasks.  Note we
-  // again make use of two RegionRequirements which use a
-  // partition as the upper bound for the privileges for the task.
 
   // Sort each sub-region locally  
   IndexLauncher qsort_launcher(QSORT_TASK_ID, launch_domain,
@@ -385,18 +237,18 @@ void top_level_task(const Task *task,
   runtime->execute_index_space(ctx, qsort_launcher);
 
 
-  TaskLauncher check_launcher(ONE_TASK_ID, TaskArgument(&num_subregions, sizeof(int)));
+  TaskLauncher gather_splitter_task(ONE_TASK_ID, TaskArgument(&num_subregions, sizeof(int)));
 
-  check_launcher.add_region_requirement(
+  gather_splitter_task.add_region_requirement(
       RegionRequirement(input_lr, READ_ONLY, EXCLUSIVE, input_lr));
-  check_launcher.region_requirements[0].add_field(FID_X);
-  check_launcher.add_region_requirement(
+  gather_splitter_task.region_requirements[0].add_field(FID_X);
+  gather_splitter_task.add_region_requirement(
       RegionRequirement(splitter_lr, READ_ONLY, EXCLUSIVE, splitter_lr));
-  check_launcher.region_requirements[1].add_field(FID_X);
-  check_launcher.add_region_requirement(
+  gather_splitter_task.region_requirements[1].add_field(FID_X);
+  gather_splitter_task.add_region_requirement(
       RegionRequirement(g_splitters_lr, WRITE_DISCARD, EXCLUSIVE, g_splitters_lr));
-  check_launcher.region_requirements[2].add_field(FID_X);
-  runtime->execute_task(ctx, check_launcher);
+  gather_splitter_task.region_requirements[2].add_field(FID_X);
+  runtime->execute_task(ctx, gather_splitter_task);
   
 
   // Write indexes for each bucket
@@ -437,14 +289,16 @@ p_bucket_task_launcher.region_requirements[0].add_field(FID_X);
   qsort_bucket_task_launcher.region_requirements[3].add_field(FID_X);
   runtime->execute_index_space(ctx, qsort_bucket_task_launcher);
 
-  // While we could also issue parallel subtasks for the checking
-  // task, we only issue a single task launch to illustrate an
-  // important Legion concept.  Note the checking task operates
-  // on the entire 'input_lr' and 'output_lr' regions and not
-  // on the subregions.  Even though the previous tasks were
-  // all operating on subregions, Legion will correctly compute
-  // data dependences on all the subtasks that generated the
-  // data in these two regions.  
+
+
+
+  TaskLauncher check_launcher(CHECKER_TASK_ID, TaskArgument(NULL, 0));
+
+  check_launcher.add_region_requirement(
+      RegionRequirement(output_lr, READ_ONLY, EXCLUSIVE, output_lr));
+  check_launcher.region_requirements[0].add_field(FID_X);
+  runtime->execute_task(ctx, check_launcher);
+
   
   runtime->destroy_logical_region(ctx, input_lr);
   runtime->destroy_logical_region(ctx, output_lr);
@@ -465,25 +319,32 @@ void init_field_task(const Task *task,
                      Context ctx, Runtime *runtime)
 {
   
+  vector<int> input_array;
+  string file_name = *((const string*)task->args);
+
   assert(regions.size() == 1); 
   assert(task->regions.size() == 1);
   assert(task->regions[0].privilege_fields.size() == 1);
 
   FieldID fid = *(task->regions[0].privilege_fields.begin());
   const int point = task->index_point.point_data[0];
-  printf("Initializing field %d for block %d...\n", fid, point);
+  printf("Running init task for point %d...\n", 
+          point);
+
   RegionAccessor<AccessorType::Generic, int> acc = 
     regions[0].get_field_accessor(fid).typeify<int>();
-  srand(fid);
-  // Note here that we get the domain for the subregion for
-  // this task from the runtime which makes it safe for running
-  // both as a single task and as part of an index space of tasks.
+  
+  readFile(file_name, input_array, false);
+
   Domain dom = runtime->get_index_space_domain(ctx, 
       task->regions[0].region.get_index_space());
   Rect<1> rect = dom.get_rect<1>();
+  int index = 0;
   for (GenericPointInRectIterator<1> pir(rect); pir; pir++)
   {
-    acc.write(DomainPoint::from_point<1>(pir.p), lrand48()%100);
+    acc.write(DomainPoint::from_point<1>(pir.p), input_array.at(index));
+    //printf("%d ", input_array.at(index));
+    index++;
   }
 }
 
@@ -521,10 +382,8 @@ void qsort_task(const Task *task,
   Rect<1> splitter_rect = dom_splitter.get_rect<1>();
 
   int length = 0;
-  printf("\nSanity Check for Values:\n");
   for (GenericPointInRectIterator<1> pir(rect); pir; pir++)
   {
-    printf("Value at [%d] is %d\n", length, acc_x.read(DomainPoint::from_point<1>(pir.p)));
     length++;
   }
 
@@ -535,42 +394,18 @@ void qsort_task(const Task *task,
 
   // This assert makes sure rect is not out of bounds
   assert (sub_rect == rect);
-  printf("\nBefore local sort\n");
-
-  int index_ptr = 0;
-  while (index_ptr < length){
-    int check_value = *((int *) (check_ptr) + index_ptr);
-    printf("Value at [%d] start is %d\n", index_ptr, check_value);
-    index_ptr++;
-  }
 
   qsort(check_ptr, length, sizeof(int), compare);
-  printf("After local sort\n");
-  index_ptr = 0;
-  while (index_ptr < length){
-    int check_value = *((int *) (check_ptr) + index_ptr);
-    printf("Value at [%d] start is %d\n", index_ptr, check_value);
-    index_ptr++;
-  }
-  printf("\n\n\n");
 
-  // Choose splitters locally and store in S
+
   GenericPointInRectIterator<1> pir(splitter_rect);
   for (int i = 0; i < num_subregions-1; i++)
   {
-    //int value = *((int *) (check_ptr) + ((length/(num_subregions*num_subregions)) * (i+1)));
     int value = ((int *) check_ptr)[(length / num_subregions) * (i+1)];
-    printf("Value selected for splitter is %d\n", value);
     acc_s.write(DomainPoint::from_point<1>(pir.p), value);
     pir++;
   }
 
-  length = 0;
-  for (GenericPointInRectIterator<1> pir(splitter_rect); pir; pir++)
-  {
-    printf("Splitter Value at [%d] is %d\n", length, acc_s.read(DomainPoint::from_point<1>(pir.p)));
-    length++;
-  }
 }
 
 
@@ -607,16 +442,12 @@ void p_bucket_task(const Task *task,
   Rect<1> split_rect = splitter_domain.get_rect<1>();
   Rect<1> sub_rect;
   
-/*  int * splitter_ptr = (int *) acc_split.raw_rect_ptr<1>(split_rect, sub_rect, &byte_offset);
-  assert (split_rect == sub_rect);*/
 
   // Accessor for bucket
   Domain bucket_domain = runtime->get_index_space_domain(ctx,
       task->regions[2].region.get_index_space());
   Rect<1> bucket_rect = bucket_domain.get_rect<1>();
   Rect<1> sub_rect2;
-/*  int * bucket_ptr = (int *) acc_bucket.raw_rect_ptr<1>(bucket_rect, sub_rect2, &byte_offset);
-  assert(bucket_rect == sub_rect2);*/
 
   GenericPointInRectIterator<1>split_iter(split_rect);
   GenericPointInRectIterator<1>prev_split_iter(split_rect);
@@ -632,21 +463,16 @@ void p_bucket_task(const Task *task,
   }
 
   int current_index = 0;
-  //, current_bucket = 0;
-  //bool last = false;
 
   while (split_iter){
 
     int value          = acc_input.read(DomainPoint::from_point<1>(input_iter.p));
-    int bucket_value   = acc_bucket.read(DomainPoint::from_point<1>(bucket_iter.p));
     int splitter_value = acc_split.read(DomainPoint::from_point<1>(split_iter.p));
 
 
-    //printf("value = %d, bucket_value = %d, splitter_value = %d\n", value, bucket_value, splitter_value);
     if (value < splitter_value){
       acc_bucket.write(DomainPoint::from_point<1>(bucket_iter.p), current_index);
       while (value < splitter_value && input_iter){
-        printf("value = %d, bucket_value = %d, splitter_value = %d, current_index = %d\n", value, bucket_value, splitter_value, current_index);
         input_iter++;
         current_index++;
         value = acc_input.read(DomainPoint::from_point<1>(input_iter.p));
@@ -669,13 +495,6 @@ void p_bucket_task(const Task *task,
   }
 
 
-  current_index = 0;
-  for (GenericPointInRectIterator<1>pir(bucket_rect); pir; pir++) {
-      int value = acc_bucket.read(DomainPoint::from_point<1>(pir.p));
-      printf("Bucket[%d] = %d\n", current_index, value);
-      current_index++;
-  }
-
 }
 
 void qsort_bucket_task(const Task *task,
@@ -683,9 +502,7 @@ void qsort_bucket_task(const Task *task,
                         Context ctx, Runtime *runtime)
 {
   assert(regions.size() == 4);
-  FieldID fid = *(task->regions[0].privilege_fields.begin());
   const int bucket = task->index_point.point_data[0];
-  printf("qsort_bucket_task field %d for block %d...\n", fid, bucket);
 
   RegionAccessor<AccessorType::Generic, int> acc_index = 
     regions[0].get_field_accessor(FID_X).typeify<int>();
@@ -748,18 +565,9 @@ void qsort_bucket_task(const Task *task,
             element_offset += (elements_per_bucket - elements);
       }
     }
-    printf("Element offset = %d\n", element_offset);
     output_ptr += element_offset;
 
   // Elements in your bucket
-/*  if (bucket == num_subregions){
-    for (int i = bucket; i < size_index; i += num_subregions){
-      int elements = *(index_ptr + i);
-      if (elements != -1)
-        total_elements_in_bucket += (elements_per_bucket -  elements);
-    }
-  }
-  else {*/
     int input_index_offset = 0;
     for (int i = bucket; i < size_index; i += num_subregions){
       int elements = *(index_ptr + i);
@@ -771,7 +579,6 @@ void qsort_bucket_task(const Task *task,
       }
           
        *output_ptr = *(input_ptr + elements + input_index_offset);
-        //printf("Writing to output first element bucket = %d, index = %d, value = %d\n", bucket, elements + input_index_offset, *output_ptr);
         int k = i+1;
         while (k < (i+num_subregions-bucket) && *(index_ptr+k) == -1){
           k++;
@@ -789,11 +596,9 @@ void qsort_bucket_task(const Task *task,
         k = i + 1;
         while (local_offset < elements_in_this_bucket){
           *output_ptr =  *(input_ptr + local_offset + input_index_offset + elements);
-          printf("Writing to output bucket = %d, index = %d, value = %d\n", bucket, local_offset + input_index_offset, *output_ptr);
           local_offset++;
           output_ptr++;
         }
-    //}
 
         input_index_offset += (total_elements / num_subregions);
   }
@@ -804,7 +609,6 @@ void qsort_bucket_task(const Task *task,
   // Do qsort on the buckets
   output_ptr = (int *) acc_output.raw_rect_ptr<1>(output_rect, output_sub_rect, &byte_offset);
   output_ptr += element_offset;
-  printf("Sorting elements in bucket[%d] from index %d to %d\n", bucket, element_offset, element_offset + total_elements_in_bucket-1);
   qsort(output_ptr, total_elements_in_bucket, sizeof(int), compare);
 
 }
@@ -817,18 +621,13 @@ void one_task(const Task *task,
   assert(task->regions.size() == 3);
   const int num_subregions = *((const int*)task->args);
 
-  RegionAccessor<AccessorType::Generic, int> acc_x = 
-    regions[0].get_field_accessor(FID_X).typeify<int>();
-  
   RegionAccessor<AccessorType::Generic, int> acc_s = 
     regions[1].get_field_accessor(FID_X).typeify<int>();
 
   RegionAccessor<AccessorType::Generic, int> acc_g = 
     regions[2].get_field_accessor(FID_X).typeify<int>();
 
-  Domain dom = runtime->get_index_space_domain(ctx, 
-      task->regions[0].region.get_index_space());
-  Rect<1> rect = dom.get_rect<1>();
+
 
   Domain dom_splitter = runtime->get_index_space_domain(ctx,
     task->regions[1].region.get_index_space());
@@ -840,14 +639,6 @@ void one_task(const Task *task,
 
   void * split_ptr = acc_s.raw_rect_ptr<1>(split_rect, sub_rect, &byte_offset);
   qsort(split_ptr, num_subregions*(num_subregions-1), sizeof(int), compare);
-
-  printf("\nValues : ");
-  for (GenericPointInRectIterator<1> pir(rect); pir; pir++)
-  {
-    int expected = acc_x.read(DomainPoint::from_point<1>(pir.p));
-    printf("%d, ", expected);
-  }
-  printf("\n");
 
 
   // Choose global splitters
@@ -869,7 +660,42 @@ void one_task(const Task *task,
   }
 }
 
+void checker_task(const Task *task,
+                const std::vector<PhysicalRegion> &regions,
+                Context ctx, Runtime *runtime)
+{
+  assert(regions.size() == 1);
+  RegionAccessor<AccessorType::Generic, int> acc_output = 
+    regions[0].get_field_accessor(FID_X).typeify<int>();
 
+  Domain output_domain = runtime->get_index_space_domain(ctx,
+    task->regions[0].region.get_index_space());
+  Rect<1> output_rect = output_domain.get_rect<1>();
+
+  std::ofstream myfile ("output.txt");
+  if (!myfile.is_open()) {
+    printf("ERROR: Could not open file output.txt\n");
+  }
+  else {
+    GenericPointInRectIterator<1> pir(output_rect);
+    int prev_value = acc_output.read(DomainPoint::from_point<1>(pir.p));
+    myfile << prev_value << " ";
+    pir++;
+    int index = 1;
+    for (; pir; pir++) {
+      int current_value = acc_output.read(DomainPoint::from_point<1>(pir.p));
+      if (current_value < prev_value) {
+       printf("ERROR: Sorting mistake at output[%d]\n", index);
+       myfile.close();
+       return;
+      }
+      myfile << current_value << " ";
+    }
+    myfile.close();    
+  }
+
+
+}
 int main(int argc, char **argv)
 {
   Runtime::set_top_level_task_id(TOP_LEVEL_TASK_ID);
@@ -898,6 +724,11 @@ int main(int argc, char **argv)
   Runtime::register_legion_task<qsort_bucket_task>(QSORT_BUCKET_ID,
       Processor::LOC_PROC, true/*single*/, true/*index*/,
       AUTO_GENERATE_ID, TaskConfigOptions(true), "qsort_bucket_task");
+
+  Runtime::register_legion_task<checker_task>(CHECKER_TASK_ID,
+      Processor::LOC_PROC, true/*single*/, true/*index*/,
+      AUTO_GENERATE_ID, TaskConfigOptions(true), "checker_task");
+
 
   return Runtime::start(argc, argv);
 }
