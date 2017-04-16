@@ -1,6 +1,19 @@
 # cs390t
 Benchmark different parallel frameworks including Galois, Legion, starPU, and in-house implementation
 
+Legion Setup
+============
+
+1. Download Stanford Legion
+   ```$ git clone https://github.com/StanfordLegion/legion.git```
+2. Add Legion runtime directory to environment
+   ```$ export LG_RT_DIR=PATH/TO/legion/runtime```
+3. Load gcc-4.9.3
+   ```$ module load gcc/4.9.3```
+3. Compile sample_sort by
+   ```$ make```
+
+
 starPU Setup
 ============
 
