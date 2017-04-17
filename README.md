@@ -51,7 +51,10 @@ starPU Setup
    $ ./configure --with-fxt=$FXTDIR --prefix=/path/to/starPU
    $ make
    $ make install
-   $ export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/home1/04009/yuhc/starpu-1.2.0
+   $ export STARPU_PATH="/path/to/starpu-1.2.0"
+   $ export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$STARPU_PATH:$STARPU_PATH/lib/pkgconfig
+   $ export LD_LIBRARY_PATH=$STARPU_PATH/lib:$LD_LIBRARY_PATH
+
    ```
 
 5. Install clang++ and all of the build-essential packages
