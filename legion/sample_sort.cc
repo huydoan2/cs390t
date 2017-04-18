@@ -68,13 +68,11 @@ void top_level_task(const Task *task,
 
   // Element Index for Buckets  
   int number_of_buckets = num_subregions*num_subregions;
-  int elements_per_bucket = num_elements/number_of_buckets;
   Rect<1> i_split_rect(Point<1>(0), Point<1>(number_of_buckets - 1));
   IndexSpace is_i_split =  runtime->create_index_space(ctx,
                               Domain::from_rect<1>(i_split_rect));
   runtime->attach_name(is_i_split, "is_i_split");
 
-  printf("DEBUG\n");
   // One per bucket
   Rect<1> one_per_bucket_rect(Point<1>(0), Point<1>(number_of_buckets - 1));
   IndexSpace is_one_per_bucket =  runtime->create_index_space(ctx,
@@ -82,7 +80,6 @@ void top_level_task(const Task *task,
   runtime->attach_name(is_one_per_bucket, "is_one_per_bucket");
   // ------------------------------------------------------------
 
-  printf("DEBUG\n");
 
   // ----------------- Field Spaces -----------------------------
   // TODO: Clean up code, use one field space
@@ -388,19 +385,26 @@ void qsort_task(const Task *task,
   // This assert makes sure rect is not out of bounds
   assert (sub_rect == rect);
 
-  int index_ptr = 0;
-  while (index_ptr < length){
+/*
+  {
+    int index_ptr = 0;
+    while (index_ptr < length){
     int check_value = *((int *) (check_ptr) + index_ptr);
-    //printf("Value at [%d] start is %d\n", index_ptr, check_value);
+    printf("Value at [%d] start is %d\n", index_ptr, check_value);
     index_ptr++;
   }
+*/
 
   qsort(check_ptr, length, sizeof(int), compare);
-  index_ptr = 0;
-  while (index_ptr < length){
-    int check_value = *((int *) (check_ptr) + index_ptr);
-    index_ptr++;
+/*
+  {
+    int index_ptr = 0;
+    while (index_ptr < length){
+      int check_value = *((int *) (check_ptr) + index_ptr);
+      index_ptr++;
+    }
   }
+*/
 
   GenericPointInRectIterator<1> pir(splitter_rect);
   for (int i = 0; i < num_subregions-1; i++)
@@ -471,7 +475,7 @@ void p_bucket_task(const Task *task,
   while (split_iter){
 
     int value          = acc_input.read(DomainPoint::from_point<1>(input_iter.p));
-    int bucket_value   = acc_bucket.read(DomainPoint::from_point<1>(bucket_iter.p));
+    // int bucket_value   = acc_bucket.read(DomainPoint::from_point<1>(bucket_iter.p));
     int splitter_value = acc_split.read(DomainPoint::from_point<1>(split_iter.p));
 
 
@@ -499,12 +503,13 @@ void p_bucket_task(const Task *task,
     }
   }
 
-
+/*
   current_index = 0;
   for (GenericPointInRectIterator<1>pir(bucket_rect); pir; pir++) {
       int value = acc_bucket.read(DomainPoint::from_point<1>(pir.p));
       current_index++;
   }
+*/
 
   printf("p_bucket_task: done\n");
 }
@@ -515,7 +520,7 @@ void qsort_bucket_task(const Task *task,
 {
 
   assert(regions.size() == 5);
-  FieldID fid = *(task->regions[0].privilege_fields.begin());
+  // FieldID fid = *(task->regions[0].privilege_fields.begin());
   const int bucket = task->index_point.point_data[0];
 
   RegionAccessor<AccessorType::Generic, int> acc_index = 
@@ -596,8 +601,9 @@ void qsort_bucket_task(const Task *task,
       }
     }
     output_ptr += element_offset;
-    printf("Bucket[%d]. Start offset = %d\n", bucket, element_offset);
-  // Elements in your bucket
+    // printf("Bucket[%d] Start offset = %d\n", bucket, element_offset);
+
+    // Elements in your bucket
     int input_index_offset = 0;
     for (int i = bucket; i < size_index; i += num_subregions){
       int elements = *(index_ptr + i);
@@ -609,7 +615,7 @@ void qsort_bucket_task(const Task *task,
       }
           
        *output_ptr = *(input_ptr + elements + input_index_offset);
-       printf("Bucket[%d] Writing (first value) %d to output[%d]\n", bucket, *(output_ptr), output_ptr - output_offset);
+       // printf("Bucket[%d] Writing %d to output[%ld]\n", bucket, *(output_ptr), output_ptr - output_offset);
         int k = i+1;
         while (k < (i+num_subregions-bucket) && *(index_ptr+k) == -1){
           k++;
@@ -627,7 +633,7 @@ void qsort_bucket_task(const Task *task,
         k = i + 1;
         while (local_offset < elements_in_this_bucket){
           *output_ptr =  *(input_ptr + local_offset + input_index_offset + elements);
-          printf("Bucket[%d] Writing (other value) %d to output[%d]\n", bucket, *(output_ptr), output_ptr - output_offset);
+          // printf("Bucket[%d] Writing %d to output[%ld]\n", bucket, *(output_ptr), output_ptr - output_offset);
           local_offset++;
           output_ptr++;
         }
@@ -644,12 +650,14 @@ void qsort_bucket_task(const Task *task,
   output_ptr += element_offset;
   qsort(output_ptr, total_elements_in_bucket, sizeof(int), compare);
 
+/*
   if (bucket == 0){
       for (int i = 0; i < total_elements; i++){
     printf("(After Write: Input value[%d] = %d\n", i, *input_checker_ptr);
     input_checker_ptr++;
    } 
   }
+*/
 }
 
 void one_task(const Task *task,
@@ -660,8 +668,8 @@ void one_task(const Task *task,
   assert(task->regions.size() == 3);
   const int num_subregions = *((const int*)task->args);
 
-  RegionAccessor<AccessorType::Generic, int> acc_x = 
-    regions[0].get_field_accessor(FID_X).typeify<int>();
+//  RegionAccessor<AccessorType::Generic, int> acc_x = 
+//    regions[0].get_field_accessor(FID_X).typeify<int>();
   
   RegionAccessor<AccessorType::Generic, int> acc_s = 
     regions[1].get_field_accessor(FID_X).typeify<int>();
@@ -669,9 +677,9 @@ void one_task(const Task *task,
   RegionAccessor<AccessorType::Generic, int> acc_g = 
     regions[2].get_field_accessor(FID_X).typeify<int>();
 
-  Domain dom = runtime->get_index_space_domain(ctx, 
-      task->regions[0].region.get_index_space());
-  Rect<1> rect = dom.get_rect<1>();
+//  Domain dom = runtime->get_index_space_domain(ctx, 
+//      task->regions[0].region.get_index_space());
+//  Rect<1> rect = dom.get_rect<1>();
 
   Domain dom_splitter = runtime->get_index_space_domain(ctx,
     task->regions[1].region.get_index_space());
