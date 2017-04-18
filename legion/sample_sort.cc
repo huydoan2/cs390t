@@ -6,16 +6,11 @@
 #include "legion_stl.h"
 #include <stdlib.h>
 #include <fstream>
-#include <string>
-#include <iostream>
-#include <vector>
-#include <sstream>
 
 using namespace Legion;
 using namespace LegionRuntime::Accessor;
 using namespace LegionRuntime::Accessor::AccessorType;
 using namespace LegionRuntime::Arrays;
-using namespace std;
 
 enum TaskIDs {
   TOP_LEVEL_TASK_ID,
@@ -31,60 +26,23 @@ enum FieldIDs {
   FID_X,
 };
 
-void readFile(std::string fileName, std::vector<int> &vect, const bool DEBUG_ON){
-  ifstream in(fileName.c_str());
-  stringstream buffer;
-  buffer << in.rdbuf();
-
-    int i;
-    while(buffer >> i) {
-
-        vect.push_back(i);
-        if (buffer.peek() == ',') {
-            buffer.ignore();
-        }
-    }
-
-    if (DEBUG_ON) {
-    printf("Vector read in is: \n");
-    for (int i = 0; i < vect.size(); i++){
-      printf("%d ", vect.at(i));
-    }
-    printf("\n");
-  }
-}
-
-
 void top_level_task(const Task *task,
                     const std::vector<PhysicalRegion> &regions,
                     Context ctx, Runtime *runtime)
 {
-   
-  std::string file_name;
-  std::vector<int> input_array;
-  const bool DEBUG_ON = false;
-  int array_size = 0;
-  int num_subregions = 10;
-
+  int num_elements = 1000; 
+  int num_subregions = 5;
   {
     const InputArgs &command_args = Runtime::get_input_args();
     for (int i = 1; i < command_args.argc; i++)
     {
       if (!strcmp(command_args.argv[i],"-n"))
+        num_elements = atoi(command_args.argv[++i]);
+      if (!strcmp(command_args.argv[i],"-b"))
         num_subregions = atoi(command_args.argv[++i]);
-      if (!strcmp(command_args.argv[i],"-f"))
-        file_name = command_args.argv[++i];
-      if (!strcmp(command_args.argv[i],"-s"))
-        array_size = atoi(command_args.argv[++i]);
-
     }
   }
   printf("Partitioning data into %d sub-regions...\n", num_subregions);
-  
-  printf("File name is %s\n", file_name.c_str());
-  printf("Size of input is %d\n", array_size);
-  
-  int num_elements = array_size;
 
   // ----------------- Index Spaces -----------------
 
@@ -110,15 +68,21 @@ void top_level_task(const Task *task,
 
   // Element Index for Buckets  
   int number_of_buckets = num_subregions*num_subregions;
-  //int elements_per_bucket = num_elements/number_of_buckets;
+  int elements_per_bucket = num_elements/number_of_buckets;
   Rect<1> i_split_rect(Point<1>(0), Point<1>(number_of_buckets - 1));
   IndexSpace is_i_split =  runtime->create_index_space(ctx,
                               Domain::from_rect<1>(i_split_rect));
   runtime->attach_name(is_i_split, "is_i_split");
 
+  printf("DEBUG\n");
+  // One per bucket
+  Rect<1> one_per_bucket_rect(Point<1>(0), Point<1>(number_of_buckets - 1));
+  IndexSpace is_one_per_bucket =  runtime->create_index_space(ctx,
+                              Domain::from_rect<1>(one_per_bucket_rect));
+  runtime->attach_name(is_one_per_bucket, "is_one_per_bucket");
   // ------------------------------------------------------------
 
-
+  printf("DEBUG\n");
 
   // ----------------- Field Spaces -----------------------------
   // TODO: Clean up code, use one field space
@@ -152,13 +116,18 @@ void top_level_task(const Task *task,
 
   LogicalRegion split_index_lr = runtime->create_logical_region(ctx, is_i_split, input_fs);
   runtime->attach_name(split_index_lr, "split_index_lr");
+
+  printf("DEBUG\n");
+  LogicalRegion one_per_bucket_lr = runtime->create_logical_region(ctx, is_one_per_bucket, input_fs);
+  runtime->attach_name(one_per_bucket_lr, "one_per_bucket_lr");
+  printf("DEBUG\n");
   // ------------------------------------------------------------
 
   Rect<1> color_bounds(Point<1>(0),Point<1>(num_subregions-1));
   Domain color_domain = Domain::from_rect<1>(color_bounds);
 
 
-  IndexPartition ip, ip_splitter, ip_index;
+  IndexPartition ip, ip_splitter, ip_index, ip_one_per_bucket;
   if ((num_elements % num_subregions) != 0)
   {
 
@@ -166,10 +135,17 @@ void top_level_task(const Task *task,
     const int lower_bound = num_elements/num_subregions;
     const int upper_bound = lower_bound+1;
     const int number_small = num_subregions - (num_elements % num_subregions);
-
+    // Create a coloring object to store the domain coloring.  A
+    // DomainColoring type is a typedef of an STL map from Colors
+    // (unsigned integers) to Domain objects and can be found in
+    // legion_types.h along with type declarations for all user-visible
+    // Legion types.
     DomainColoring coloring;
     int index = 0;
-
+    // We fill in the coloring by computing the domain of points
+    // to assign to each color.  We assign 'elmts_per_subregion'
+    // to all colors except the last one when we clamp the
+    // value to the maximum number of elements.
     for (int color = 0; color < num_subregions; color++)
     {
       int num_elmts = color < number_small ? lower_bound : upper_bound;
@@ -189,18 +165,21 @@ void top_level_task(const Task *task,
   }
   runtime->attach_name(ip, "ip");
 
+
   Blockify<1> coloring(num_subregions-1);
   ip_splitter = runtime->create_index_partition(ctx, is_l_split, coloring);
   Blockify<1> bucket_coloring(num_subregions);
-  ip_index    = runtime->create_index_partition(ctx, is_i_split, bucket_coloring);
+  ip_index          = runtime->create_index_partition(ctx, is_i_split, bucket_coloring);
+  ip_one_per_bucket = runtime->create_index_partition(ctx, is_one_per_bucket, bucket_coloring);
   runtime->attach_name(ip_splitter, "ip_splitter");
   runtime->attach_name(ip_index, "ip_index");
- 
+  runtime->attach_name(ip_one_per_bucket, "ip_one_per_bucket");
+  printf("DEBUG\n");
   LogicalPartition input_lp = runtime->get_logical_partition(ctx, input_lr, ip);
   runtime->attach_name(input_lp, "input_lp");
 
-  LogicalPartition output_lp = runtime->get_logical_partition(ctx, output_lr, ip);
-  runtime->attach_name(output_lp, "output_lp");
+/*  LogicalPartition output_lp = runtime->get_logical_partition(ctx, output_lr, ip);
+  runtime->attach_name(output_lp, "output_lp");*/
 
   LogicalPartition splitter_lp = runtime->get_logical_partition(ctx, splitter_lr, ip_splitter);
   runtime->attach_name(splitter_lp, "splitter_lp");
@@ -208,19 +187,24 @@ void top_level_task(const Task *task,
   LogicalPartition split_index_lp = runtime->get_logical_partition(ctx, split_index_lr, ip_index);
   runtime->attach_name(split_index_lp, "split_index_lp");
 
+  LogicalPartition one_per_bucket_lp = runtime->get_logical_partition(ctx, one_per_bucket_lr, ip_one_per_bucket);
+  runtime->attach_name(one_per_bucket_lp, "one_per_bucket_lp");
 
   // Create our launch domain.  Note that is the same as color domain
   // as we are going to launch one task for each subregion we created.
   Domain launch_domain = color_domain; 
   ArgumentMap arg_map;
 
-  TaskLauncher init_launcher(INIT_FIELD_TASK_ID, TaskArgument(&file_name, sizeof(file_name)));
+  IndexLauncher init_launcher(INIT_FIELD_TASK_ID, launch_domain, 
+                              TaskArgument(NULL, 0), arg_map);
 
   init_launcher.add_region_requirement(
-      RegionRequirement(input_lr, WRITE_DISCARD, EXCLUSIVE, input_lr));
+      RegionRequirement(input_lp, 0/*projection ID*/, 
+                        WRITE_DISCARD, EXCLUSIVE, input_lr));
   init_launcher.region_requirements[0].add_field(FID_X);
-  runtime->execute_task(ctx, init_launcher);
+  runtime->execute_index_space(ctx, init_launcher);
 
+  runtime->execute_index_space(ctx, init_launcher);
 
   // Sort each sub-region locally  
   IndexLauncher qsort_launcher(QSORT_TASK_ID, launch_domain,
@@ -253,19 +237,20 @@ void top_level_task(const Task *task,
 
   // Write indexes for each bucket
   
- IndexLauncher p_bucket_task_launcher(P_BUCKET_TASK_ID, launch_domain,
+  IndexLauncher p_bucket_task_launcher(P_BUCKET_TASK_ID, launch_domain,
                 TaskArgument(&num_subregions, sizeof(int)), arg_map);
 
- p_bucket_task_launcher.add_region_requirement(
+  p_bucket_task_launcher.add_region_requirement(
       RegionRequirement(input_lp, 0,
                         READ_ONLY, EXCLUSIVE, input_lr));
-p_bucket_task_launcher.region_requirements[0].add_field(FID_X);
+  p_bucket_task_launcher.region_requirements[0].add_field(FID_X);
 
- p_bucket_task_launcher.add_region_requirement(
-      RegionRequirement(g_splitters_lr, READ_ONLY, EXCLUSIVE, g_splitters_lr));
+  p_bucket_task_launcher.add_region_requirement(
+      RegionRequirement(g_splitters_lr, 0,
+        READ_ONLY, EXCLUSIVE, g_splitters_lr));
   p_bucket_task_launcher.region_requirements[1].add_field(FID_X);
 
- p_bucket_task_launcher.add_region_requirement(
+  p_bucket_task_launcher.add_region_requirement(
       RegionRequirement(split_index_lp, 0,
                         WRITE_DISCARD, EXCLUSIVE, split_index_lr));
   p_bucket_task_launcher.region_requirements[2].add_field(FID_X);
@@ -275,28 +260,41 @@ p_bucket_task_launcher.region_requirements[0].add_field(FID_X);
   IndexLauncher qsort_bucket_task_launcher(QSORT_BUCKET_ID, launch_domain,
                 TaskArgument(&num_subregions, sizeof(int)), arg_map);
   qsort_bucket_task_launcher.add_region_requirement(
-      RegionRequirement(split_index_lr, READ_ONLY, EXCLUSIVE, split_index_lr));
+      RegionRequirement(split_index_lr, 0,
+        READ_ONLY, SIMULTANEOUS, split_index_lr));
   qsort_bucket_task_launcher.region_requirements[0].add_field(FID_X);
+
   qsort_bucket_task_launcher.add_region_requirement(
-      RegionRequirement(input_lr, READ_ONLY, EXCLUSIVE, input_lr));
+      RegionRequirement(input_lr, 0,
+        READ_ONLY, SIMULTANEOUS, input_lr));
   qsort_bucket_task_launcher.region_requirements[1].add_field(FID_X);
+
+  qsort_bucket_task_launcher.add_region_requirement(
+      RegionRequirement(one_per_bucket_lp, 0,
+        READ_WRITE, EXCLUSIVE, one_per_bucket_lr));
+  qsort_bucket_task_launcher.region_requirements[2].add_field(FID_X);
+
   qsort_bucket_task_launcher.add_region_requirement(
       RegionRequirement(split_index_lp, 0,
-                        READ_ONLY, EXCLUSIVE, split_index_lr));
-  qsort_bucket_task_launcher.region_requirements[2].add_field(FID_X);
-  qsort_bucket_task_launcher.add_region_requirement(
-      RegionRequirement(output_lr, WRITE_DISCARD, SIMULTANEOUS, output_lr));
+                        READ_ONLY, SIMULTANEOUS, split_index_lr));
   qsort_bucket_task_launcher.region_requirements[3].add_field(FID_X);
+  
+  qsort_bucket_task_launcher.add_region_requirement(
+      RegionRequirement(output_lr, 0,
+        READ_ONLY, SIMULTANEOUS, output_lr));
+  qsort_bucket_task_launcher.region_requirements[4].add_field(FID_X);
   runtime->execute_index_space(ctx, qsort_bucket_task_launcher);
-
 
 
 
   TaskLauncher check_launcher(CHECKER_TASK_ID, TaskArgument(NULL, 0));
 
   check_launcher.add_region_requirement(
-      RegionRequirement(output_lr, READ_ONLY, EXCLUSIVE, output_lr));
+      RegionRequirement(one_per_bucket_lr, READ_ONLY, EXCLUSIVE, one_per_bucket_lr));
   check_launcher.region_requirements[0].add_field(FID_X);
+  check_launcher.add_region_requirement(
+      RegionRequirement(output_lr, READ_ONLY, EXCLUSIVE, output_lr));
+  check_launcher.region_requirements[1].add_field(FID_X);
   runtime->execute_task(ctx, check_launcher);
 
   
@@ -319,32 +317,25 @@ void init_field_task(const Task *task,
                      Context ctx, Runtime *runtime)
 {
   
-  vector<int> input_array;
-  string file_name = *((const string*)task->args);
-
   assert(regions.size() == 1); 
   assert(task->regions.size() == 1);
   assert(task->regions[0].privilege_fields.size() == 1);
 
   FieldID fid = *(task->regions[0].privilege_fields.begin());
   const int point = task->index_point.point_data[0];
-  printf("Running init task for point %d...\n", 
-          point);
-
+  printf("Initializing field %d for block %d...\n", fid, point);
   RegionAccessor<AccessorType::Generic, int> acc = 
     regions[0].get_field_accessor(fid).typeify<int>();
-  
-  readFile(file_name, input_array, false);
+  srand(fid);
 
   Domain dom = runtime->get_index_space_domain(ctx, 
       task->regions[0].region.get_index_space());
   Rect<1> rect = dom.get_rect<1>();
-  int index = 0;
   for (GenericPointInRectIterator<1> pir(rect); pir; pir++)
   {
-    acc.write(DomainPoint::from_point<1>(pir.p), input_array.at(index));
-    //printf("%d ", input_array.at(index));
-    index++;
+    int val = lrand48()%100;
+    acc.write(DomainPoint::from_point<1>(pir.p), val);
+    //printf("Value[%d] written is %d\n", point, val);
   }
 }
 
@@ -395,8 +386,19 @@ void qsort_task(const Task *task,
   // This assert makes sure rect is not out of bounds
   assert (sub_rect == rect);
 
-  qsort(check_ptr, length, sizeof(int), compare);
+  int index_ptr = 0;
+  while (index_ptr < length){
+    int check_value = *((int *) (check_ptr) + index_ptr);
+    //printf("Value at [%d] start is %d\n", index_ptr, check_value);
+    index_ptr++;
+  }
 
+  qsort(check_ptr, length, sizeof(int), compare);
+  index_ptr = 0;
+  while (index_ptr < length){
+    int check_value = *((int *) (check_ptr) + index_ptr);
+    index_ptr++;
+  }
 
   GenericPointInRectIterator<1> pir(splitter_rect);
   for (int i = 0; i < num_subregions-1; i++)
@@ -467,6 +469,7 @@ void p_bucket_task(const Task *task,
   while (split_iter){
 
     int value          = acc_input.read(DomainPoint::from_point<1>(input_iter.p));
+    int bucket_value   = acc_bucket.read(DomainPoint::from_point<1>(bucket_iter.p));
     int splitter_value = acc_split.read(DomainPoint::from_point<1>(split_iter.p));
 
 
@@ -495,13 +498,22 @@ void p_bucket_task(const Task *task,
   }
 
 
+  current_index = 0;
+  for (GenericPointInRectIterator<1>pir(bucket_rect); pir; pir++) {
+      int value = acc_bucket.read(DomainPoint::from_point<1>(pir.p));
+      current_index++;
+  }
+
+  printf("p_bucket_task: done\n");
 }
 
 void qsort_bucket_task(const Task *task,
                         const std::vector<PhysicalRegion> &regions,
                         Context ctx, Runtime *runtime)
 {
-  assert(regions.size() == 4);
+
+  assert(regions.size() == 5);
+  FieldID fid = *(task->regions[0].privilege_fields.begin());
   const int bucket = task->index_point.point_data[0];
 
   RegionAccessor<AccessorType::Generic, int> acc_index = 
@@ -510,8 +522,11 @@ void qsort_bucket_task(const Task *task,
   RegionAccessor<AccessorType::Generic, int> acc_input = 
     regions[1].get_field_accessor(FID_X).typeify<int>();
 
+  RegionAccessor<AccessorType::Generic, int> acc_one_per_bucket = 
+    regions[2].get_field_accessor(FID_X).typeify<int>();
+
   RegionAccessor<AccessorType::Generic, int> acc_output = 
-    regions[3].get_field_accessor(FID_X).typeify<int>();
+    regions[4].get_field_accessor(FID_X).typeify<int>();
 
 
   Domain input_domain = runtime->get_index_space_domain(ctx,
@@ -520,12 +535,16 @@ void qsort_bucket_task(const Task *task,
   Domain index_domain = runtime->get_index_space_domain(ctx,
     task->regions[0].region.get_index_space());
   
-  Domain output_domain = runtime->get_index_space_domain(ctx,
-    task->regions[3].region.get_index_space());
+  Domain one_per_bucket_dom = runtime->get_index_space_domain(ctx,
+    task->regions[2].region.get_index_space());
 
-  Rect<1> input_rect = input_domain.get_rect<1>();
-  Rect<1> index_rect = index_domain.get_rect<1>();
+  Domain output_domain = runtime->get_index_space_domain(ctx,
+    task->regions[4].region.get_index_space());
+
+  Rect<1> input_rect  = input_domain.get_rect<1>();
+  Rect<1> index_rect  = index_domain.get_rect<1>();
   Rect<1> output_rect = output_domain.get_rect<1>();
+  Rect<1> one_per_bucket_rect = one_per_bucket_dom.get_rect<1>();
   
   const int total_elements = input_rect.dim_size(0);
   const int num_subregions = *((const int*)task->args);
@@ -604,7 +623,8 @@ void qsort_bucket_task(const Task *task,
   }
 
   printf("For bucket %d: Total Elements =  %d\n", bucket, total_elements_in_bucket);
-
+  GenericPointInRectIterator<1>pir(one_per_bucket_rect);
+  acc_one_per_bucket.write(DomainPoint::from_point<1>(pir.p), total_elements_in_bucket);
  
   // Do qsort on the buckets
   output_ptr = (int *) acc_output.raw_rect_ptr<1>(output_rect, output_sub_rect, &byte_offset);
@@ -621,13 +641,18 @@ void one_task(const Task *task,
   assert(task->regions.size() == 3);
   const int num_subregions = *((const int*)task->args);
 
+  RegionAccessor<AccessorType::Generic, int> acc_x = 
+    regions[0].get_field_accessor(FID_X).typeify<int>();
+  
   RegionAccessor<AccessorType::Generic, int> acc_s = 
     regions[1].get_field_accessor(FID_X).typeify<int>();
 
   RegionAccessor<AccessorType::Generic, int> acc_g = 
     regions[2].get_field_accessor(FID_X).typeify<int>();
 
-
+  Domain dom = runtime->get_index_space_domain(ctx, 
+      task->regions[0].region.get_index_space());
+  Rect<1> rect = dom.get_rect<1>();
 
   Domain dom_splitter = runtime->get_index_space_domain(ctx,
     task->regions[1].region.get_index_space());
@@ -664,13 +689,32 @@ void checker_task(const Task *task,
                 const std::vector<PhysicalRegion> &regions,
                 Context ctx, Runtime *runtime)
 {
-  assert(regions.size() == 1);
-  RegionAccessor<AccessorType::Generic, int> acc_output = 
+  assert(regions.size() == 2);
+  RegionAccessor<AccessorType::Generic, int> acc_bucket = 
     regions[0].get_field_accessor(FID_X).typeify<int>();
 
-  Domain output_domain = runtime->get_index_space_domain(ctx,
+  RegionAccessor<AccessorType::Generic, int> acc_output = 
+    regions[1].get_field_accessor(FID_X).typeify<int>();
+
+  Domain bucket_domain = runtime->get_index_space_domain(ctx,
     task->regions[0].region.get_index_space());
+
+  Domain output_domain = runtime->get_index_space_domain(ctx,
+    task->regions[1].region.get_index_space());
+
+  Rect<1> bucket_rect = bucket_domain.get_rect<1>();
   Rect<1> output_rect = output_domain.get_rect<1>();
+
+
+
+  printf("Printing out size of each final bucket:\n");
+  int counter = 0;
+  for (GenericPointInRectIterator<1> pir(bucket_rect); pir; pir++) {
+    printf("Value[%d] = %d\n", counter, acc_bucket.read(DomainPoint::from_point<1>(pir.p)));
+    counter++;
+  }
+
+
 
   std::ofstream myfile ("output.txt");
   if (!myfile.is_open()) {
