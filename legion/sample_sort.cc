@@ -30,8 +30,8 @@ void top_level_task(const Task *task,
                     const std::vector<PhysicalRegion> &regions,
                     Context ctx, Runtime *runtime)
 {
-  int num_elements = 1000; 
-  int num_subregions = 5;
+  int num_elements = 20; 
+  int num_subregions = 2;
   {
     const InputArgs &command_args = Runtime::get_input_args();
     for (int i = 1; i < command_args.argc; i++)
@@ -331,11 +331,13 @@ void init_field_task(const Task *task,
   Domain dom = runtime->get_index_space_domain(ctx, 
       task->regions[0].region.get_index_space());
   Rect<1> rect = dom.get_rect<1>();
+  int value = 10;
   for (GenericPointInRectIterator<1> pir(rect); pir; pir++)
   {
-    int val = lrand48()%100;
-    acc.write(DomainPoint::from_point<1>(pir.p), val);
-    //printf("Value[%d] written is %d\n", point, val);
+    //int val = lrand48()%100;
+    acc.write(DomainPoint::from_point<1>(pir.p), value);
+    printf("Value[%d] written is %d\n", point, value);
+    value--;
   }
 }
 
@@ -562,6 +564,7 @@ void qsort_bucket_task(const Task *task,
   assert(index_rect == index_sub_rect);
 
   int * output_ptr = (int *) acc_output.raw_rect_ptr<1>(output_rect, output_sub_rect, &byte_offset);
+  int * output_offset = output_ptr;
   assert(output_rect == output_sub_rect);
 
   int total_elements_in_bucket = 0;
@@ -598,6 +601,7 @@ void qsort_bucket_task(const Task *task,
       }
           
        *output_ptr = *(input_ptr + elements + input_index_offset);
+       printf("Bucket[%d] Writing %d to output[%d]\n", bucket, *(output_ptr), output_ptr - output_offset);
         int k = i+1;
         while (k < (i+num_subregions-bucket) && *(index_ptr+k) == -1){
           k++;
@@ -615,6 +619,7 @@ void qsort_bucket_task(const Task *task,
         k = i + 1;
         while (local_offset < elements_in_this_bucket){
           *output_ptr =  *(input_ptr + local_offset + input_index_offset + elements);
+          printf("Bucket[%d] Writing %d to output[%d]\n", bucket, *(output_ptr), output_ptr - output_offset);
           local_offset++;
           output_ptr++;
         }
