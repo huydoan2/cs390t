@@ -24,7 +24,8 @@ TARGET_BIN = \
        $(BINDIR)/example1 \
        $(BINDIR)/example2 \
        $(BINDIR)/fmm_pts \
-       $(BINDIR)/fmm_cheb
+       $(BINDIR)/fmm_cheb \
+       $(BINDIR)/hyper_qsort
 
 all : $(TARGET_BIN)
 
