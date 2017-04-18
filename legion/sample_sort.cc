@@ -38,14 +38,34 @@ struct InputData {
   int num_subregions;
 };
 
+void readFile(const char *fileName, std::vector<int> &vect){		
+  ifstream in(fileName);		
+  stringstream buffer;		
+  buffer << in.rdbuf();		
+  int i;		
+  while(buffer >> i) {		
+      vect.push_back(i);		
+      if (buffer.peek() == ',') {		
+          buffer.ignore();		
+      }		
+  }		
+
+#ifdef VERBOSE
+  printf("Vector read in is: \n");		
+  for (size_t i = 0; i < vect.size(); i++){		
+    printf("%d ", vect.at(i));		
+  }		
+  printf("\n");		
+#endif
+}
+
 void top_level_task(const Task *task,
                     const std::vector<PhysicalRegion> &regions,
                     Context ctx, Runtime *runtime)
 {
   std::string file_name="";
   char filename[128];
-  std::vector<int> input_array;		
-  int num_elements = 20; 
+  int num_elements = 20;  // per subregion
   int num_subregions = 2;
   {
     const InputArgs &command_args = Runtime::get_input_args();
@@ -60,10 +80,11 @@ void top_level_task(const Task *task,
     }
   }
   strcpy(filename, file_name.c_str());
+
   struct InputData input_data = {
     .filename = filename,
     .num_elements = num_elements,
-    .num_subregions = num_subregions };
+    .num_subregions = num_subregions};
   printf("Partitioning data into %d sub-regions...\n", num_subregions);
 
   // ----------------- Index Spaces -----------------
@@ -220,8 +241,6 @@ void top_level_task(const Task *task,
   init_launcher.region_requirements[0].add_field(FID_X);
   runtime->execute_index_space(ctx, init_launcher);
 
-  runtime->execute_index_space(ctx, init_launcher);
-
   // Sort each sub-region locally  
   IndexLauncher qsort_launcher(QSORT_TASK_ID, launch_domain,
                 TaskArgument(&num_subregions, sizeof(int)), arg_map);
@@ -328,27 +347,6 @@ void top_level_task(const Task *task,
   runtime->destroy_index_space(ctx, is_io);
 }
 
-void readFile(const char *fileName, std::vector<int> &vect){		
-  ifstream in(fileName);		
-  stringstream buffer;		
-  buffer << in.rdbuf();		
-  int i;		
-  while(buffer >> i) {		
-      vect.push_back(i);		
-      if (buffer.peek() == ',') {		
-          buffer.ignore();		
-      }		
-  }		
-
-#ifdef VERBOSE
-  printf("Vector read in is: \n");		
-  for (size_t i = 0; i < vect.size(); i++){		
-    printf("%d ", vect.at(i));		
-  }		
-  printf("\n");		
-#endif
-}
-
 void init_field_task(const Task *task,
                      const std::vector<PhysicalRegion> &regions,
                      Context ctx, Runtime *runtime)
@@ -361,6 +359,10 @@ void init_field_task(const Task *task,
   FieldID fid = *(task->regions[0].privilege_fields.begin());
   const int point = task->index_point.point_data[0];
   printf("Initializing field %d for block %d...\n", fid, point);
+  // TODO: We only read input data on one process
+  // But other processes will have zero array
+  if (point) return;
+
   RegionAccessor<AccessorType::Generic, int> acc = 
     regions[0].get_field_accessor(fid).typeify<int>();
   srand(fid);
@@ -370,17 +372,18 @@ void init_field_task(const Task *task,
   Rect<1> rect = dom.get_rect<1>();
 
   struct InputData *input_data = (struct InputData*)task->args;
+  const char *filename = input_data->filename;
   std::vector<int> input_array;
-  if (strlen(input_data->filename) > 0)
-    readFile(input_data->filename, input_array);
+  if (strlen(filename) > 0)
+    readFile(filename, input_array);
 
   if (!input_array.empty()) {
-    int index = 0 * (input_data->num_elements/input_data->num_subregions); // TODO: replace 0 with SUB_REGION_ID)
+    int index = 0;
     for (GenericPointInRectIterator<1> pir(rect); pir; pir++)
     {
       int val = input_array[index++];
       acc.write(DomainPoint::from_point<1>(pir.p), val);
-#ifndef VERBOSE
+#ifdef VERBOSE
       printf("Value[%d] written is %d\n", point, val);
 #endif
     }
