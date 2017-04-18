@@ -61,9 +61,9 @@ starPU Setup
 
    ```$ module load llvm```
 
-6. Compile the sample_sort code by running make
+6. Compile the sample_sort code by running `make`
 7. Set the STARPU_GENERATE_TRACE=1
-7. Run it by `STARPU_SCHED=lwc ./sample_sort 1m.txt` using the 1m.txt input and scheduler locality work stealing
+7. Run it by `STARPU_SCHED=lws ./sample_sort 1m.txt` using the 1m.txt input and scheduler locality work stealing
   ..* Output is in output.txt
   ..* Trace is in .trace, use vite to open
 
@@ -88,8 +88,11 @@ Galois Setup
    $ make
    ```
 3. Build sample_sort:
-   Add `add_subdirectory(sample_sort)` to `/path/to/Galois-2.2.1/apps/CMakeLists.txt`\n
-   Copy `./galois/sample_sort` to `/path/to/Galois-2.2.1/apps`\n
+
+   Add `add_subdirectory(sample_sort)` to `/path/to/Galois-2.2.1/apps/CMakeLists.txt`
+
+   Copy `./galois/sample_sort` to `/path/to/Galois-2.2.1/apps`
+
    Run `make` in `/path/to/Galois-2.2.1/build/release` again
 
 4. Run sample_sort
