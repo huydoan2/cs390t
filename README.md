@@ -30,7 +30,7 @@ starPU Setup
 
 2. Install hwloc
 
-  ```$ sudo apt-get install hwloc```
+   ```$ sudo apt-get install hwloc```
 
 3. Install FxT - a performance benchmark tool.
 
@@ -66,3 +66,26 @@ starPU Setup
 7. Run it by `STARPU_SCHED=lwc ./sample_sort 1m.txt` using the 1m.txt input and scheduler locality work stealing
   ..* Output is in output.txt
   ..* Trace is in .trace, use vite to open
+
+
+Galois Setup
+============
+
+1. Download stable Galois version
+
+   ```$ wget http://iss.ices.utexas.edu/projects/galois/downloads/Galois-2.2.1.tar.gz```
+
+2. Install Galois
+
+   ```
+   $ module load gcc/4.9.3
+   $ module load boost/1.61.0
+   $ export Boost_INCLUDE_DIR=/opt/apps/gcc4_9/boost/1.61.0/include/
+   $ tar xzvf Galois-2.2.1.tar.gz
+   $ cd Galois-2.2.1/build
+   $ mkdir release
+   $ cd release
+   $ cmake ../.. -DCMAKE_C_COMPILER=gcc
+   $ make
+   $ ../../scripts/run_small.sh
+   ```
