@@ -559,6 +559,14 @@ void qsort_bucket_task(const Task *task,
 
   int * input_ptr = (int *) acc_input.raw_rect_ptr<1>(input_rect, input_sub_rect, &byte_offset);
   assert(input_rect == input_sub_rect);
+  int * input_checker_ptr = input_ptr;
+  if (bucket == 0){
+      for (int i = 0; i < total_elements; i++){
+    printf("(Before Write: Input value[%d] = %d\n", i, *input_checker_ptr);
+    input_checker_ptr++;
+   } 
+  }
+  input_checker_ptr = input_ptr;
 
   int * index_ptr = (int *) acc_index.raw_rect_ptr<1>(index_rect, index_sub_rect, &byte_offset);
   assert(index_rect == index_sub_rect);
@@ -588,7 +596,7 @@ void qsort_bucket_task(const Task *task,
       }
     }
     output_ptr += element_offset;
-
+    printf("Bucket[%d]. Start offset = %d\n", bucket, element_offset);
   // Elements in your bucket
     int input_index_offset = 0;
     for (int i = bucket; i < size_index; i += num_subregions){
@@ -601,7 +609,7 @@ void qsort_bucket_task(const Task *task,
       }
           
        *output_ptr = *(input_ptr + elements + input_index_offset);
-       printf("Bucket[%d] Writing %d to output[%d]\n", bucket, *(output_ptr), output_ptr - output_offset);
+       printf("Bucket[%d] Writing (first value) %d to output[%d]\n", bucket, *(output_ptr), output_ptr - output_offset);
         int k = i+1;
         while (k < (i+num_subregions-bucket) && *(index_ptr+k) == -1){
           k++;
@@ -614,12 +622,12 @@ void qsort_bucket_task(const Task *task,
           elements_in_this_bucket = (elements_per_bucket - elements);
           total_elements_in_bucket += (elements_per_bucket - elements);
         }
-        int local_offset = 0;
+        int local_offset = 1;
         output_ptr++;
         k = i + 1;
         while (local_offset < elements_in_this_bucket){
           *output_ptr =  *(input_ptr + local_offset + input_index_offset + elements);
-          printf("Bucket[%d] Writing %d to output[%d]\n", bucket, *(output_ptr), output_ptr - output_offset);
+          printf("Bucket[%d] Writing (other value) %d to output[%d]\n", bucket, *(output_ptr), output_ptr - output_offset);
           local_offset++;
           output_ptr++;
         }
@@ -636,6 +644,12 @@ void qsort_bucket_task(const Task *task,
   output_ptr += element_offset;
   qsort(output_ptr, total_elements_in_bucket, sizeof(int), compare);
 
+  if (bucket == 0){
+      for (int i = 0; i < total_elements; i++){
+    printf("(After Write: Input value[%d] = %d\n", i, *input_checker_ptr);
+    input_checker_ptr++;
+   } 
+  }
 }
 
 void one_task(const Task *task,
