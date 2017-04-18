@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <fstream>
 
+//#define VERBOSE
+
 using namespace Legion;
 using namespace LegionRuntime::Accessor;
 using namespace LegionRuntime::Accessor::AccessorType;
@@ -114,10 +116,8 @@ void top_level_task(const Task *task,
   LogicalRegion split_index_lr = runtime->create_logical_region(ctx, is_i_split, input_fs);
   runtime->attach_name(split_index_lr, "split_index_lr");
 
-  printf("DEBUG\n");
   LogicalRegion one_per_bucket_lr = runtime->create_logical_region(ctx, is_one_per_bucket, input_fs);
   runtime->attach_name(one_per_bucket_lr, "one_per_bucket_lr");
-  printf("DEBUG\n");
   // ------------------------------------------------------------
 
   Rect<1> color_bounds(Point<1>(0),Point<1>(num_subregions-1));
@@ -171,7 +171,6 @@ void top_level_task(const Task *task,
   runtime->attach_name(ip_splitter, "ip_splitter");
   runtime->attach_name(ip_index, "ip_index");
   runtime->attach_name(ip_one_per_bucket, "ip_one_per_bucket");
-  printf("DEBUG\n");
   LogicalPartition input_lp = runtime->get_logical_partition(ctx, input_lr, ip);
   runtime->attach_name(input_lp, "input_lp");
 
@@ -328,13 +327,13 @@ void init_field_task(const Task *task,
   Domain dom = runtime->get_index_space_domain(ctx, 
       task->regions[0].region.get_index_space());
   Rect<1> rect = dom.get_rect<1>();
-  int value = 10;
   for (GenericPointInRectIterator<1> pir(rect); pir; pir++)
   {
-    //int val = lrand48()%100;
-    acc.write(DomainPoint::from_point<1>(pir.p), value);
-    printf("Value[%d] written is %d\n", point, value);
-    value--;
+    int val = lrand48()%100;
+    acc.write(DomainPoint::from_point<1>(pir.p), val);
+#ifdef VERBOSE
+    printf("Value[%d] written is %d\n", point, val);
+#endif
   }
 }
 
@@ -564,6 +563,8 @@ void qsort_bucket_task(const Task *task,
 
   int * input_ptr = (int *) acc_input.raw_rect_ptr<1>(input_rect, input_sub_rect, &byte_offset);
   assert(input_rect == input_sub_rect);
+
+#ifdef VERBOSE
   int * input_checker_ptr = input_ptr;
   if (bucket == 0){
       for (int i = 0; i < total_elements; i++){
@@ -572,13 +573,17 @@ void qsort_bucket_task(const Task *task,
    } 
   }
   input_checker_ptr = input_ptr;
+#endif
 
   int * index_ptr = (int *) acc_index.raw_rect_ptr<1>(index_rect, index_sub_rect, &byte_offset);
   assert(index_rect == index_sub_rect);
 
   int * output_ptr = (int *) acc_output.raw_rect_ptr<1>(output_rect, output_sub_rect, &byte_offset);
-  int * output_offset = output_ptr;
   assert(output_rect == output_sub_rect);
+
+#ifdef VERBOSE
+  int * output_offset = output_ptr;
+#endif
 
   int total_elements_in_bucket = 0;
 
@@ -601,7 +606,9 @@ void qsort_bucket_task(const Task *task,
       }
     }
     output_ptr += element_offset;
-    // printf("Bucket[%d] Start offset = %d\n", bucket, element_offset);
+#ifdef VERBOSE
+    printf("Bucket[%d] Start offset = %d\n", bucket, element_offset);
+#endif
 
     // Elements in your bucket
     int input_index_offset = 0;
@@ -615,7 +622,9 @@ void qsort_bucket_task(const Task *task,
       }
           
        *output_ptr = *(input_ptr + elements + input_index_offset);
-       // printf("Bucket[%d] Writing %d to output[%ld]\n", bucket, *(output_ptr), output_ptr - output_offset);
+#ifdef VERBOSE
+        printf("Bucket[%d] Writing %d to output[%ld]\n", bucket, *(output_ptr), output_ptr - output_offset);
+#endif
         int k = i+1;
         while (k < (i+num_subregions-bucket) && *(index_ptr+k) == -1){
           k++;
@@ -633,7 +642,9 @@ void qsort_bucket_task(const Task *task,
         k = i + 1;
         while (local_offset < elements_in_this_bucket){
           *output_ptr =  *(input_ptr + local_offset + input_index_offset + elements);
-          // printf("Bucket[%d] Writing %d to output[%ld]\n", bucket, *(output_ptr), output_ptr - output_offset);
+#ifdef VERBOSE
+          printf("Bucket[%d] Writing %d to output[%ld]\n", bucket, *(output_ptr), output_ptr - output_offset);
+#endif
           local_offset++;
           output_ptr++;
         }
@@ -650,14 +661,14 @@ void qsort_bucket_task(const Task *task,
   output_ptr += element_offset;
   qsort(output_ptr, total_elements_in_bucket, sizeof(int), compare);
 
-/*
+#ifdef VERBOSE
   if (bucket == 0){
       for (int i = 0; i < total_elements; i++){
     printf("(After Write: Input value[%d] = %d\n", i, *input_checker_ptr);
     input_checker_ptr++;
    } 
   }
-*/
+#endif
 }
 
 void one_task(const Task *task,
