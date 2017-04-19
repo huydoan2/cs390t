@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-//#define VERBOSE
+#define VERBOSE
 
 using namespace std;
 using namespace Legion;
@@ -330,10 +330,12 @@ void top_level_task(const Task *task,
 
     TaskLauncher check_launcher(CHECKER_TASK_ID, TaskArgument(NULL, 0));
     check_launcher.add_region_requirement(
-        RegionRequirement(output_lr, READ_ONLY, EXCLUSIVE, output_lr));
+        RegionRequirement(one_per_bucket_lr, READ_ONLY, EXCLUSIVE, one_per_bucket_lr));
     check_launcher.region_requirements[0].add_field(FID_X);
+    check_launcher.add_region_requirement(
+        RegionRequirement(output_lr, READ_ONLY, EXCLUSIVE, output_lr));
+    check_launcher.region_requirements[1].add_field(FID_X);
     runtime->execute_task(ctx, check_launcher);
-
 
     runtime->destroy_logical_region(ctx, input_lr);
     runtime->destroy_logical_region(ctx, output_lr);
@@ -812,14 +814,14 @@ void checker_task(const Task *task,
                   const std::vector<PhysicalRegion> &regions,
                   Context ctx, Runtime *runtime)
 {
-    assert(regions.size() == 1);
-
+    assert(regions.size() == 2);
+    printf("Running checker_task\n");
     RegionAccessor<AccessorType::Generic, int> acc_output =
-        regions[0].get_field_accessor(FID_X).typeify<int>();
+        regions[1].get_field_accessor(FID_X).typeify<int>();
 
 
     Domain output_domain = runtime->get_index_space_domain(ctx,
-                           task->regions[0].region.get_index_space());
+                           task->regions[1].region.get_index_space());
 
     Rect<1> output_rect = output_domain.get_rect<1>();
 
@@ -833,6 +835,9 @@ void checker_task(const Task *task,
     {
         GenericPointInRectIterator<1> pir(output_rect);
         int prev_value = acc_output.read(DomainPoint::from_point<1>(pir.p));
+        #ifdef VERBOSE
+            printf("Writing to output.txt: %d\n", prev_value);
+        #endif
         myfile << prev_value << " ";
         pir++;
         int index = 1;
@@ -845,6 +850,9 @@ void checker_task(const Task *task,
                 myfile.close();
                 return;
             }
+            #ifdef VERBOSE
+                printf("Writing to output.txt: %d\n", current_value);
+            #endif
             myfile << current_value << " ";
         }
         myfile.close();
