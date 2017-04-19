@@ -1,0 +1,7 @@
+#!/bin/bash
+
+export OMP_NUM_THREADS=1
+time ./ex1.x -n 10000000
+time ./ex1.x -f input.txt
+export OMP_NUM_THREADS=8
+time ./ex1.x -n 10000000

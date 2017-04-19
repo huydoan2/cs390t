@@ -4,8 +4,8 @@ $ source sourcename
 $ make all
 $ cd parallelIO/
 $ srun -p vis -t ${1-1:00:00} -n 1 --pty /bin/bash -l
-$ replace "mpirun -np" with "ibrun -n":
-	ibrun -n 1 ./test_generate_data.exe -file exN40000.d10 -nref 40000 -d 10 -gen 1 -binary
+$ replace "mpirun" with "ibrun":
+	ibrun -np 1 ./test_generate_data.exe -file exN40000.d10 -nref 40000 -d 10 -gen 1 -binary
 
 BUIDLING THE LIBRARIES
 1) MPI:  make sure mpicc and mpic++ are in the path

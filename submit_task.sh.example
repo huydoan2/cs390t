@@ -1,0 +1,14 @@
+#!/bin/bash
+
+#SBATCH -V
+#SBATCH -J sampe_sort
+#SBATCH -n 1 -N 1
+#SBATCH -o $JOB_NAME.out$JOB_ID
+#SBATCH -p serial
+#SBATCH -t 01:00:00
+#SBATCH --begin=now
+#SBATCH --mail-user=hyu@cs.utexas.edu
+
+module load gcc/4.9.3
+module load llvm
+./sample_sort -f inp.txt -s 10 -n 2
