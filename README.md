@@ -30,6 +30,11 @@ Legion Setup
 
    ```$ make```
 
+4. Run sample_sort (arguments: -f input filename, -n number of elements,
+   -b number of subregions)
+
+   ```$ ./sample_sort -f input.txt -n 10 -b 2```
+
 
 starPU Setup
 ============
@@ -38,7 +43,7 @@ starPU Setup
 
    ```$ wget http://starpu.gforge.inria.fr/files/starpu-1.2.0/starpu-1.2.0.tar.gz```
 
-2. Install hwloc
+2. Install hwloc (skip if on TACC)
 
    ```$ sudo apt-get install hwloc```
 
@@ -107,9 +112,9 @@ Galois Setup
 
    Run `make` in `release` again
 
-4. Run sample_sort
+4. Run sample_sort (arguments: input filename, number of threads)
 
    ```
    $ cd /path/to/release
-   $ ./apps/sample_sort/array input.txt
+   $ ./apps/sample_sort/array input.txt 2
    ```

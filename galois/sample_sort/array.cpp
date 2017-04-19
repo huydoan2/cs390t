@@ -206,6 +206,11 @@ void print(int** b,int numThreads, int n)
 
 int main(int argc, char *argv[])
 {
+    if (argc < 2) {
+        printf("Usage: %s <input_file> <thread_num>\n", argv[0]);
+        return -1;
+    }
+
     ifstream myfile;
     myfile.open(argv[1]);
     int N;
@@ -221,7 +226,7 @@ int main(int argc, char *argv[])
     // cout << endl;
 
     int n;
-    int numThreads = 4;
+    int numThreads = atoi(argv[2]);
     int m = N;
 
     int i=0;
