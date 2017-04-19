@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#define VERBOSE
+//#define VERBOSE
 
 using namespace std;
 using namespace Legion;
@@ -240,12 +240,38 @@ void top_level_task(const Task *task,
     Domain launch_domain = color_domain;
     ArgumentMap arg_map;
 
+
+
+
+
+    // TESTING STUFF
+    RegionRequirement req(input_lr, READ_WRITE, EXCLUSIVE, input_lr);
+    req.add_field(FID_X);
+    InlineLauncher input_launcher(req);
+    PhysicalRegion input_region = runtime->map_region(ctx, input_launcher);
+    input_region.wait_until_valid();
+    RegionAccessor<AccessorType::Generic, int> acc_x =
+        input_region.get_field_accessor(FID_X).typeify<int>();
+    vector<int> input_array;
+    readFile(filename, input_array);
+    int i = 0;
+    for(GenericPointInRectIterator<1>pir(input_rect); pir; pir++){
+        #ifdef VERBOSE
+            printf("top_level_task: writing to input_lr[%d] = %d\n", i, input_array.at(i));
+        #endif
+        acc_x.write(DomainPoint::from_point<1>(pir.p), input_array.at(i));
+        i++;
+    }
+
+
+/*
+
     TaskLauncher init_launcher(INIT_FIELD_TASK_ID, TaskArgument(&input_data, sizeof(struct InputData)));
 
     init_launcher.add_region_requirement(
         RegionRequirement(input_lr, WRITE_DISCARD, EXCLUSIVE, input_lr));
     init_launcher.region_requirements[0].add_field(FID_X);
-    runtime->execute_task(ctx, init_launcher);
+    runtime->execute_task(ctx, init_launcher);*/
 
     // Sort each sub-region locally
     IndexLauncher qsort_launcher(QSORT_TASK_ID, launch_domain,
