@@ -163,13 +163,14 @@ int i,j;std::cout<<""<<std::endl;
 	}     
 }
 
-int main() {
+int main(int argc,char **argv) {
 
 
 
 int length;
 ifstream myfile;
-myfile.open("input.txt");
+
+myfile.open(argv[2]);
 string line;
 getline(myfile,line);
 string s1;
@@ -207,7 +208,7 @@ cout<<"----------------------------------------------------------------------"<<
 
 
 int n;  
-int numThreads = 4;
+int numThreads = atoi(argv[1]);;
 int m = length;  
 
 int i=0;
