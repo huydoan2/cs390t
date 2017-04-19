@@ -134,7 +134,6 @@ void top_level_task(const Task *task,
 
 
     // ----------------- Field Spaces -----------------------------
-    // TODO: Clean up code, use one field space
 
     // Input Field Space
     FieldSpace input_fs = runtime->create_field_space(ctx);
@@ -241,14 +240,12 @@ void top_level_task(const Task *task,
     Domain launch_domain = color_domain;
     ArgumentMap arg_map;
 
-    IndexLauncher init_launcher(INIT_FIELD_TASK_ID, launch_domain,
-                                TaskArgument(&input_data, sizeof(struct InputData)), arg_map);
+    TaskLauncher init_launcher(INIT_FIELD_TASK_ID, TaskArgument(&input_data, sizeof(struct InputData)));
 
     init_launcher.add_region_requirement(
-        RegionRequirement(input_lp, 0/*projection ID*/,
-                          WRITE_DISCARD, EXCLUSIVE, input_lr));
+        RegionRequirement(input_lr, WRITE_DISCARD, EXCLUSIVE, input_lr));
     init_launcher.region_requirements[0].add_field(FID_X);
-    runtime->execute_index_space(ctx, init_launcher);
+    runtime->execute_task(ctx, init_launcher);
 
     // Sort each sub-region locally
     IndexLauncher qsort_launcher(QSORT_TASK_ID, launch_domain,
@@ -332,13 +329,9 @@ void top_level_task(const Task *task,
 
 
     TaskLauncher check_launcher(CHECKER_TASK_ID, TaskArgument(NULL, 0));
-
-    check_launcher.add_region_requirement(
-        RegionRequirement(one_per_bucket_lr, READ_ONLY, EXCLUSIVE, one_per_bucket_lr));
-    check_launcher.region_requirements[0].add_field(FID_X);
     check_launcher.add_region_requirement(
         RegionRequirement(output_lr, READ_ONLY, EXCLUSIVE, output_lr));
-    check_launcher.region_requirements[1].add_field(FID_X);
+    check_launcher.region_requirements[0].add_field(FID_X);
     runtime->execute_task(ctx, check_launcher);
 
 
@@ -368,9 +361,7 @@ void init_field_task(const Task *task,
     FieldID fid = *(task->regions[0].privilege_fields.begin());
     const int point = task->index_point.point_data[0];
     printf("Initializing field %d for block %d...\n", fid, point);
-    // TODO: We only read input data on one process
-    // But other processes will have zero array
-    if (point) return;
+
 
     RegionAccessor<AccessorType::Generic, int> acc =
         regions[0].get_field_accessor(fid).typeify<int>();
@@ -821,32 +812,16 @@ void checker_task(const Task *task,
                   const std::vector<PhysicalRegion> &regions,
                   Context ctx, Runtime *runtime)
 {
-    assert(regions.size() == 2);
-    RegionAccessor<AccessorType::Generic, int> acc_bucket =
-        regions[0].get_field_accessor(FID_X).typeify<int>();
+    assert(regions.size() == 1);
 
     RegionAccessor<AccessorType::Generic, int> acc_output =
-        regions[1].get_field_accessor(FID_X).typeify<int>();
+        regions[0].get_field_accessor(FID_X).typeify<int>();
 
-    Domain bucket_domain = runtime->get_index_space_domain(ctx,
-                           task->regions[0].region.get_index_space());
 
     Domain output_domain = runtime->get_index_space_domain(ctx,
-                           task->regions[1].region.get_index_space());
+                           task->regions[0].region.get_index_space());
 
-    Rect<1> bucket_rect = bucket_domain.get_rect<1>();
     Rect<1> output_rect = output_domain.get_rect<1>();
-
-
-
-    printf("Printing out size of each final bucket:\n");
-    int counter = 0;
-    for (GenericPointInRectIterator<1> pir(bucket_rect); pir; pir++)
-    {
-        printf("Value[%d] = %d\n", counter, acc_bucket.read(DomainPoint::from_point<1>(pir.p)));
-        counter++;
-    }
-
 
 
     std::ofstream myfile ("output.txt");
