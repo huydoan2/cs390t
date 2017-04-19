@@ -46,6 +46,8 @@ void readFile(const char *fileName, std::vector<int> &vect)
     ifstream in(fileName);
     stringstream buffer;
     buffer << in.rdbuf();
+    int n;
+    buffer >> n;
     int i;
     while(buffer >> i)
     {
