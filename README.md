@@ -1,6 +1,16 @@
 # cs390t
 Benchmark different parallel frameworks including Galois, Legion, starPU, and in-house implementation
 
+Data Generation
+===============
+
+```
+$ cd data && make
+$ ./generator 1000 1K
+```
+
+`1K` is the suffix of the filename. It generates four types of input data.
+
 Legion Setup
 ============
 
