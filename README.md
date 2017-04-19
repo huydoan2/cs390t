@@ -103,11 +103,13 @@ Galois Setup
 
    Copy `./galois/sample_sort` to `/path/to/Galois-2.2.1/apps`
 
-   Run `make` in `/path/to/Galois-2.2.1/build/release` again
+   Copy input file to `/path/to/Galois-2.2.1/build/release`
+
+   Run `make` in `release` again
 
 4. Run sample_sort
 
    ```
-   $ cd /path/to/release/apps/sample_sort
-   $ ./array
+   $ cd /path/to/release
+   $ ./apps/sample_sort/array input.txt
    ```

@@ -204,56 +204,25 @@ void print(int** b,int numThreads, int n)
     }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-
-
-
-    int length;
     ifstream myfile;
-    myfile.open("input.txt");
-    string line;
-    getline(myfile,line);
-    string s1;
-    stringstream ss1(line);
-    getline(ss1,s1,',');
-    stringstream convert(s1);
-    convert>>length;
+    myfile.open(argv[1]);
+    int N;
+    myfile >> N;
     ofstream output;
-    output.open("output");
+    output.open("output.txt");
 
-
-
-
-    int* a = new int[length];
-    int count=0;
-
-    cout<<"----------------------------------------------------------------------"<<endl;
-    while(getline(myfile,line))
-    {
-        string s;
-        stringstream ss(line);
-        while(getline(ss,s,',') && count <length)
-        {
-            if(s!="\0")
-            {
-                stringstream convert(s);
-                convert>>a[count];
-                //cout<<a[count]<<endl;
-                count++;
-            }
-        }
+    int* a = new int[N];
+    for (int i = 0; i < N; ++i) {
+        myfile >> a[i];
+        // cout << a[i] << " ";
     }
-
-
-    cout<<"----------------------------------------------------------------------"<<endl;
-
-
-
+    // cout << endl;
 
     int n;
     int numThreads = 4;
-    int m = length;
+    int m = N;
 
     int i=0;
     int finpar[numThreads];
@@ -352,13 +321,7 @@ int main()
 
     finpar[x]=10000;
 
-
-
-
-
     y=0;
-
-
 
     /*	int xx=0;
     	 for(i=0;i<numThreads;i++)
@@ -379,12 +342,7 @@ int main()
     		}
     	}*/
 
-
-
-
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), index_cal{b,index_mat,n,finpar,size,numThreads});
-
-
 
     /*printf("\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n");
     for(int k=0;k<numThreads;k++)
@@ -421,13 +379,11 @@ int main()
     	}
     }*/
 
-
     for(int k=0; k<numThreads; k++)
     {
         Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), fin_merge{b,bb,size,sum,index_mat,k,numThreads});
     }
     printf("\nDone\n");
-
 
 
     for(int k=0; k<numThreads; k++)
