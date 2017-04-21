@@ -118,3 +118,27 @@ Galois Setup
    $ cd /path/to/release
    $ ./apps/sample_sort/array input.txt 2
    ```
+
+PVFMM Setup (Editing)
+=====================
+
+1. Build PVFMM
+
+   Copy `hyper_qsort.c` to `pvfmm_dir/examples/src`. Then:
+
+   ```
+   $ module load intel fftw3 cxx11/4.9.1 autotools/1.1
+   $ ./autogen.sh
+
+   $ ./configure MPICXX=mpicxx --with-openmp-flag='openmp' CXXFLAGS=" -qno-offload -Ofast -xhost -DNDEBUG -std=c++11 -I$TACC_MKL_INC" --with-fftw-include="$TACC_MKL_INC/fftw" --with-fftw-lib="-mkl" --with-blas='-mkl' --with-lapack='-mkl' --prefix=/path/to/install/pvfmm/dir
+
+   or (not work in my case)
+
+   $ idev -A CS395_Parallel_Algor
+   $ ./configure --with-fftw=$TACC_FFTW3_DIR --prefix=/path/to/install/pvfmm/dir
+
+   $ make && make install
+   $ export PVFMM_DIR=/path/to/install/pvfmm/dir/share/pvfmm
+   $ cd examples && make
+   $ idev -A ibrun -np 2 bin/hyper_qsort -N 100000 -omp 1
+   ```
