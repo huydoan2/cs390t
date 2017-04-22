@@ -1,5 +1,6 @@
 #include <starpu.h>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -228,34 +229,15 @@ int main(int argc, char **argv)
 
     int ret;
     
-    
-    //starpu_data_handle_t array_handle;
-    //starpu_vector_data_register(&array_handle, STARPU_MAIN_RAM, (uintptr_t)arr, len, sizeof(int));
-
     /* Initialize StarPU with default configuration */
     ret = starpu_init(NULL);
     if (ret == -ENODEV)
         return 77;
     STARPU_CHECK_RETURN_VALUE(ret, "starpu_init");
 
+    /* Enable profiling */
+	starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
     
-    //struct starpu_task *task_init = starpu_task_create();
-    //task_init->cl = &init_codelet;
-    //task_init->handles[0] = array_handle;
-    //task_init->cl_arg = &in_file;
-    //task_init->cl_arg_size = sizeof(in_file);
-    //task_init->synchronous = 1;
-    /* submit the task to StarPU */
-    //ret = starpu_task_submit(task_init);
-    //if (ret != -ENODEV)
-    //    STARPU_CHECK_RETURN_VALUE(ret, "starpu_task_submit");
-
-    //starpu_data_unregister(array_handle);
-
-
-    //starpu_data_handle_t splitters_handle;
-    //starpu_vector_data_register(&splitters_handle, STARPU_MAIN_RAM, (uintptr_t)splitters, NUM_CPU * (NUM_CPU - 1), sizeof(int));
-
     int reg_blk_size = len / NUM_CPU;
     int last_blk_size = (len % NUM_CPU == 0) ? reg_blk_size : len % NUM_CPU;
 
@@ -420,11 +402,36 @@ int main(int argc, char **argv)
 
     starpu_data_unregister(buckets_handle);
 
-    //for (int i = 0; i < NUM_CPU; ++i){
-    //    starpu_data_unregister(buckets_handle[i]);
-    //}
+    	/* Display the occupancy of all workers during the test */
+    ofstream perf_file("worker.txt");
+    perf_file << std::fixed;
+    perf_file << std::setprecision(2);
 
-    
+	unsigned worker;
+	for (worker = 0; worker < starpu_worker_get_count(); worker++)
+	{
+		struct starpu_profiling_worker_info worker_info;
+		ret = starpu_profiling_worker_get_info(worker, &worker_info);
+		STARPU_ASSERT(!ret);
+
+		double total_time = starpu_timing_timespec_to_us(&worker_info.total_time);
+		double executing_time = starpu_timing_timespec_to_us(&worker_info.executing_time);
+		double sleeping_time = starpu_timing_timespec_to_us(&worker_info.sleeping_time);
+		double overhead_time = total_time - executing_time - sleeping_time;
+
+		float executing_ratio = 100.0*executing_time/total_time;
+		float sleeping_ratio = 100.0*sleeping_time/total_time;
+		float overhead_ratio = 100.0 - executing_ratio - sleeping_ratio;
+
+		char workername[128];
+		starpu_worker_get_name(worker, workername, 128);
+		perf_file << "Worker " << workername << endl;
+		perf_file << "\ttotal time : "<< total_time*1e-3 << " ms" << endl;
+		perf_file << "\texec time  : " << executing_time*1e-3 << " ms (" << executing_ratio << "%%)" << endl;
+		perf_file << "\tblocked time  : " << sleeping_time*1e-3 << " ms (" << sleeping_ratio << "%%)" << endl;
+		perf_file << "\toverhead time: " << overhead_time*1e-3 << " ms (" << overhead_ratio << "%%)" << endl;
+	}
+    perf_file.close();
 
     /* terminate StarPU */
     starpu_shutdown();
