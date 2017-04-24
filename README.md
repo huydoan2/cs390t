@@ -7,9 +7,22 @@ Data Generation
 ```
 $ cd data && make
 $ ./generator 1000 1K
+$ ./generator 10000 10K
+$ ./generator 100000 100K
+$ ./generator 1000000 1M
+$ ./generator 10000000 10M
 ```
 
 `1K` is the suffix of the filename. It generates four types of input data.
+
+Perf the performance
+====================
+
+```
+$ perf stat ./binary [parameters]
+```
+
+For most benchmarks, you may use something like `-f /path/to/data/inc_1K.txt` as input.
 
 Legion Setup
 ============
