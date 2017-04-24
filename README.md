@@ -19,10 +19,14 @@ Perf the performance
 ====================
 
 ```
-$ perf stat ./binary [parameters]
+$ perf stat -B -e L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,L1-dcache-store-misses,dTLB-loads,dTLB-load-misses,dTLB-stores,dTLB-store-misses ./binary [parameters]
 ```
 
-For most benchmarks, you may use something like `-f /path/to/data/inc_1K.txt` as input.
+For most benchmarks, you may use something like `-f /path/to/data/inc_1K.txt` as input. For example:
+
+```
+$ perf stat -B -e L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,L1-dcache-store-misses,dTLB-loads,dTLB-load-misses,dTLB-stores,dTLB-store-misses ./ex1.x -f ~/cs390t/data/inc_1K.txt
+```
 
 Legion Setup
 ============
