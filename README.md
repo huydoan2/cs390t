@@ -7,13 +7,13 @@ Data Generation
 ```
 $ cd data && make
 $ ./generator 1000 1K
-$ ./generator 10000 10K
-$ ./generator 100000 100K
-$ ./generator 1000000 1M
-$ ./generator 10000000 10M
 ```
 
 `1K` is the suffix of the filename. It generates four types of input data.
+
+The input data is put in `/work/04009/yuhc/cs395t-data/data`. It is shared among course group members.
+
+TODO: separate the input data into files for multiple nodes to read.
 
 Perf the performance
 ====================
@@ -25,7 +25,7 @@ $ perf stat -B -e L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,L1-dcac
 For most benchmarks, you may use something like `-f /path/to/data/inc_1K.txt` as input. For example:
 
 ```
-$ perf stat -B -e L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,L1-dcache-store-misses,dTLB-loads,dTLB-load-misses,dTLB-stores,dTLB-store-misses ./ex1.x -f ~/cs390t/data/inc_1K.txt
+$ perf stat -B -e L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,L1-dcache-store-misses,dTLB-loads,dTLB-load-misses,dTLB-stores,dTLB-store-misses ./ex1.x -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt
 ```
 
 Legion Setup
