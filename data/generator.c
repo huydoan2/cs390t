@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
     fprintf(fp, "%d\n", n);
     srand(time(NULL));
     for (int i = 0; i < n; i++)
-        fprintf(fp, "%d%c", rand(), i==n-1?'\n':' ');
+        fprintf(fp, "%d%c", rand()%n, i==n-1?'\n':' ');
     fclose(fp);
 
     return 0;
