@@ -95,7 +95,7 @@ starPU Setup
 
 6. Compile the sample_sort code by running `make`
 7. Set the STARPU_GENERATE_TRACE=1
-7. Run it by `STARPU_SCHED=lws ./sample_sort 1m.txt` using the 1m.txt input and scheduler locality work stealing
+7. Run it by `SYNC=1 STARPU_SCHED=lws ./sample_sort 16 1m.txt` using syncing 16 processors the 1m.txt input and scheduler locality work stealing
   ..* Output is in output.txt
   ..* Trace is in .trace, use vite to open
 
