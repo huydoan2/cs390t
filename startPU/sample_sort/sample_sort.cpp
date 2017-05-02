@@ -6,6 +6,7 @@
 #include <string>
 #include <stdlib.h> // for sequential sort
 #include <vector>
+#include <sys/time.h>
 
 using namespace std;
 
@@ -234,6 +235,7 @@ int main(int argc, char **argv)
     }
 
     int ret;
+    struct timeval begin, end;
 
     /* Initialize StarPU with default configuration */
     ret = starpu_init(NULL);
@@ -246,6 +248,9 @@ int main(int argc, char **argv)
 
     int reg_blk_size = len / NUM_CPU;
     int last_blk_size = (len % NUM_CPU == 0) ? reg_blk_size : len % NUM_CPU;
+
+    // Start the timer
+    gettimeofday(&begin, NULL);
 
     // ********************************************/
     // I - Local sort every block and pick splitters//
@@ -455,6 +460,10 @@ int main(int argc, char **argv)
     #ifdef SYNC
     starpu_task_wait_for_all(); //sync
     #endif
+    
+    // End the timer
+    gettimeofday(&end, NULL);
+    
     for(int i = 0; i < NUM_CPU; ++i)
     {
         starpu_data_unregister(out_handles[i]);
@@ -496,9 +505,14 @@ int main(int argc, char **argv)
     /* terminate StarPU */
     starpu_shutdown();
 
+
     ofstream out_file("output.txt");
     int blk_size;
     int cpu;
+
+    // print out execution time
+    unsigned long long exec_time = (end.tv_sec - begin.tv_sec)*1000000L + (end.tv_usec - begin.tv_usec);
+    cout << "exec time: " << exec_time/1000 << "ms" << endl;
 
     for (int i = 0; i < len; ++i)
     {
