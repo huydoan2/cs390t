@@ -36,6 +36,8 @@ int main(int argc, char **argv)
         return 0;
     }
 
+std::cout << "Number of elements: " << N << std::endl;
+
 #ifdef VERBOSE
     std::cout << "\n\t Before sorting\n";
     for (int i=0; i<N; i++) std::cout << input[i] << std::endl;

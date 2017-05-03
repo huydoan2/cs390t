@@ -33,6 +33,7 @@
 #include <string>
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
 
 #define localsplitter 3
 
@@ -215,8 +216,11 @@ int main(int argc, char *argv[])
     myfile.open(argv[1]);
     int N;
     myfile >> N;
+
+#ifdef VERBOSE
     ofstream output;
     output.open("output.txt");
+#endif
 
     int* a = new int[N];
     for (int i = 0; i < N; ++i) {
@@ -280,37 +284,17 @@ int main(int argc, char *argv[])
             bb[k][kk]=0;
         }
     }
-    const clock_t begin_time = clock();
-// std::cout << "Using a function object\n";
-//  Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), HelloWorld());
 
-// std::cout << "Using a function pointer\n";
+    struct timeval tv_start, tv_end;
+    gettimeofday(&tv_start, NULL);
+
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), ArrayOp{a,b,n,numThreads});
 
-//std::cout<<"HERE"<<std::endl;
-//print(b,numThreads,n);
-    const clock_t c1=clock();
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), Sort{a,b,n,numThreads});
-// std::cout<<"Sorted"<<std::endl;
-//print(b,numThreads,n);
-
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), gathersplit{gath,b,n,p,numThreads});
-    //std::cout<<"n/p = "<<n/p;
-
-
-    //printf("\nGathering:\n");
-    /*for (i=0;i<numThreads*(p-1);i++)
-    {
-    	std::cout<<" " <<gath[i];
-    }*/
 
     quickSort(gath,0,numThreads*(p-1)-1);
-    //printf("\nSorted:\n");
-
-    /*for (i=0;i<numThreads*(p-1);i++)
-    {
-    	std::cout<<" " <<gath[i];
-    }	*/
+    
     int x=0;
     int y=numThreads*(p-1);
     for (i=y/numThreads-1; i<y; i+=y/numThreads+1)
@@ -318,45 +302,11 @@ int main(int argc, char *argv[])
         finpar[x]=gath[i];
         x++;
     }
-    //printf("Finpar:\n%d\n",x);
-    /*for (i=0;i<x;i++)
-    {
-    	std::cout<<" " <<finpar[i];
-    }*/
-
     finpar[x]=10000;
 
     y=0;
 
-    /*	int xx=0;
-    	 for(i=0;i<numThreads;i++)
-    		{
-    		  for(j=0;j<n;j++)
-    			{
-    				for(xx=0;xx<=numThreads-1;xx++)
-    				{
-    					if(xx==0)
-    					{if(b[i][j]<=finpar[xx])
-    						{bb[xx][xo[xx]]=b[i][j];xo[xx]++;}
-    					}
-    					else
-    					if(b[i][j]<=finpar[xx]&&b[i][j]>finpar[xx-1])
-    					{bb[xx][xo[xx]]=b[i][j];xo[xx]++;}
-    				}
-
-    		}
-    	}*/
-
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), index_cal{b,index_mat,n,finpar,size,numThreads});
-
-    /*printf("\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n");
-    for(int k=0;k<numThreads;k++)
-    {
-    	for(int kk=0;kk<=numThreads;kk++)
-    	{	std::cout<<index_mat[k][kk]<<std::endl;
-    	}
-    }
-    printf("\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n");*/
 
     for(int k=0; k<numThreads; k++)
     {
@@ -366,23 +316,7 @@ int main(int argc, char *argv[])
 
         }
     }
-    std::cout << float( clock () - c1 ) /  CLOCKS_PER_SEC<<std::endl;
-    /*for(int k=0;k<numThreads;k++)
-    {
-    	for(int kk=0;kk<numThreads;kk++)
-    	{	std::cout<<size[k][kk]<<std::endl;
-
-    	}
-    }
-    printf("\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n");*/
-
-    /*for(int k=0;k<numThreads;k++)
-    {
-    	for(int kk=0;kk<numThreads;kk++)
-    	{	std::cout<<sum[k][kk]<<std::endl;
-
-    	}
-    }*/
+    //std::cout << float( clock () - c1 ) /  CLOCKS_PER_SEC<<std::endl;
 
     for(int k=0; k<numThreads; k++)
     {
@@ -398,15 +332,14 @@ int main(int argc, char *argv[])
 
     cout<<"----------------------------------------------------------------------"<<endl;
 
-    /*for(int k=0;k<numThreads;k++)
-    {
-    	for(int kk=0;kk<xo[k];kk++)
-    	{	std::cout<<bb[k][kk]<<std::endl;
-    	}
-    }*/
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), Sort_post{a,bb,xo,numThreads});
-    std::cout << float( clock () - begin_time ) /  CLOCKS_PER_SEC;
+    gettimeofday(&tv_end, NULL);
+    printf ("Total time = %f seconds\n",
+        (double) (tv_end.tv_usec - tv_start.tv_usec) / 1000000 +
+        (double) (tv_end.tv_sec - tv_start.tv_sec));
+    //std::cout << float( clock () - begin_time ) /  CLOCKS_PER_SEC;
 
+#ifdef VERBOSE
     for(int k=0; k<numThreads; k++)
     {
         for(int kk=0; kk<xo[k]; kk++)
@@ -414,6 +347,8 @@ int main(int argc, char *argv[])
             output<<bb[k][kk]<<endl;
         }
     }
+#endif
+
     bb=NULL;
     b=NULL;
     a=NULL;
