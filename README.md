@@ -157,5 +157,6 @@ PVFMM Setup (Editing)
    $ make && make install
    $ export PVFMM_DIR=/path/to/install/pvfmm/dir/share/pvfmm
    $ cd examples && make
-   $ idev -A ibrun -np 2 bin/hyper_qsort -N 100000 -omp 1
+   $ ibrun -np 2 bin/hyper_qsort -N 100000 -omp 1
+   $ ibrun -np 2 bin/hyper_qsort -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt -omp 1
    ```
