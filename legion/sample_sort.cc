@@ -246,7 +246,7 @@ void top_level_task(const Task *task,
 
 
 
-    // TESTING STUFF
+    // Reading input
     RegionRequirement req(input_lr, READ_WRITE, EXCLUSIVE, input_lr);
     req.add_field(FID_X);
     InlineLauncher input_launcher(req);
@@ -441,6 +441,8 @@ void qsort_task(const Task *task,
                 const std::vector<PhysicalRegion> &regions,
                 Context ctx, Runtime *runtime)
 {
+    double ts_start, ts_end;
+    ts_start = Realm::Clock::current_time_in_microseconds();
     assert(regions.size() == 2);
     assert(task->regions.size() == 2);
 
@@ -508,6 +510,9 @@ void qsort_task(const Task *task,
         pir++;
     }
 
+    ts_end = Realm::Clock::current_time_in_microseconds();
+    double sim_time = 1e-6 * (ts_end - ts_start);
+    printf("qsort_task [%d] - Time taken: %7.3f s", point, sim_time);
 }
 
 
@@ -516,6 +521,10 @@ void p_bucket_task(const Task *task,
                    const std::vector<PhysicalRegion> &regions,
                    Context ctx, Runtime *runtime)
 {
+
+    double ts_start, ts_end;
+    ts_start = Realm::Clock::current_time_in_microseconds();
+    const int point = task->index_point.point_data[0];
 
     FieldID fid_input  = *(task->regions[0].privilege_fields.begin());
     FieldID fid_split  = *(task->regions[1].privilege_fields.begin());
@@ -611,13 +620,19 @@ void p_bucket_task(const Task *task,
       }
     */
 
-    printf("p_bucket_task: done\n");
+    ts_end = Realm::Clock::current_time_in_microseconds();
+    double sim_time = 1e-6 * (ts_end - ts_start);
+    printf("p_bucket_task [%d] - Time taken: %7.3f s", point, sim_time);
 }
 
 void qsort_bucket_task(const Task *task,
                        const std::vector<PhysicalRegion> &regions,
                        Context ctx, Runtime *runtime)
 {
+
+
+    double ts_start, ts_end;
+    ts_start = Realm::Clock::current_time_in_microseconds();
 
     assert(regions.size() == 5);
     // FieldID fid = *(task->regions[0].privilege_fields.begin());
@@ -783,12 +798,21 @@ void qsort_bucket_task(const Task *task,
         }
     }
 #endif
+
+    ts_end = Realm::Clock::current_time_in_microseconds();
+    double sim_time = 1e-6 * (ts_end - ts_start);
+    printf("qsort_bucket_task [%d] - Time taken: %7.3f s", bucket, sim_time);
+
 }
 
 void one_task(const Task *task,
               const std::vector<PhysicalRegion> &regions,
               Context ctx, Runtime *runtime)
 {
+
+    double ts_start, ts_end;
+    ts_start = Realm::Clock::current_time_in_microseconds();
+    const int point = task->index_point.point_data[0];
     assert(regions.size() == 3);
     assert(task->regions.size() == 3);
     const int num_subregions = *((const int*)task->args);
@@ -836,12 +860,20 @@ void one_task(const Task *task,
         int expected = acc_g.read(DomainPoint::from_point<1>(pir.p));
         printf("Global Splitter Value is %d\n", expected);
     }
+
+
+    double sim_time = 1e-6 * (ts_end - ts_start);
+    printf("one_task [%d] - Time taken: %7.3f s", point, sim_time);
 }
 
 void checker_task(const Task *task,
                   const std::vector<PhysicalRegion> &regions,
                   Context ctx, Runtime *runtime)
 {
+
+    double ts_start, ts_end;
+    ts_start = Realm::Clock::current_time_in_microseconds();
+    const int point = task->index_point.point_data[0];
     assert(regions.size() == 2);
     printf("Running checker_task\n");
     RegionAccessor<AccessorType::Generic, int> acc_output =
@@ -886,7 +918,9 @@ void checker_task(const Task *task,
         myfile.close();
     }
 
-
+    ts_end = Realm::Clock::current_time_in_microseconds();
+    double sim_time = 1e-6 * (ts_end - ts_start);
+    printf("checker_task [%d] - Time taken: %7.3f s", point, sim_time);
 }
 int main(int argc, char **argv)
 {
