@@ -79,7 +79,7 @@ starPU Setup
    $ make install
    ```
 
-4. In starPU folder, make and install
+4. In starPU folder, make and install (add `--disable-debug --disable-fortran --disable-opencl` flags to disable debugging mode.
    ```
    $ module load autotools/1.1
    $ ./autogen.sh
