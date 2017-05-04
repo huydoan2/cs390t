@@ -43,6 +43,7 @@ struct InputData
 
 void readFile(const char *fileName, std::vector<int> &vect)
 {
+    printf("Trying to read file\n\n");
     ifstream in(fileName);
     stringstream buffer;
     buffer << in.rdbuf();
@@ -511,8 +512,8 @@ void qsort_task(const Task *task,
     }
 
     ts_end = Realm::Clock::current_time_in_microseconds();
-    double sim_time = 1e-6 * (ts_end - ts_start);
-    printf("qsort_task [%d] - Time taken: %7.3f s", point, sim_time);
+    double sim_time = (ts_end - ts_start);
+    printf("qsort_task [%d] - Time taken: %7.3f microseconds\n", point, sim_time);
 }
 
 
@@ -621,8 +622,8 @@ void p_bucket_task(const Task *task,
     */
 
     ts_end = Realm::Clock::current_time_in_microseconds();
-    double sim_time = 1e-6 * (ts_end - ts_start);
-    printf("p_bucket_task [%d] - Time taken: %7.3f s", point, sim_time);
+    double sim_time = (ts_end - ts_start);
+    printf("p_bucket_task [%d] - Time taken: %7.3f microseconds\n", point, sim_time);
 }
 
 void qsort_bucket_task(const Task *task,
@@ -800,8 +801,8 @@ void qsort_bucket_task(const Task *task,
 #endif
 
     ts_end = Realm::Clock::current_time_in_microseconds();
-    double sim_time = 1e-6 * (ts_end - ts_start);
-    printf("qsort_bucket_task [%d] - Time taken: %7.3f s", bucket, sim_time);
+    double sim_time = (ts_end - ts_start);
+    printf("qsort_bucket_task [%d] - Time taken: %7.3f microseconds\n", bucket, sim_time);
 
 }
 
@@ -861,9 +862,9 @@ void one_task(const Task *task,
         printf("Global Splitter Value is %d\n", expected);
     }
 
-
-    double sim_time = 1e-6 * (ts_end - ts_start);
-    printf("one_task [%d] - Time taken: %7.3f s", point, sim_time);
+    ts_end = Realm::Clock::current_time_in_microseconds();
+    double sim_time = (ts_end - ts_start);
+    printf("one_task [%d] - Time taken: %7.3f microseconds\n", point, sim_time);
 }
 
 void checker_task(const Task *task,
@@ -919,8 +920,8 @@ void checker_task(const Task *task,
     }
 
     ts_end = Realm::Clock::current_time_in_microseconds();
-    double sim_time = 1e-6 * (ts_end - ts_start);
-    printf("checker_task [%d] - Time taken: %7.3f s", point, sim_time);
+    double sim_time = (ts_end - ts_start);
+    printf("checker_task [%d] - Time taken: %7.3f microseconds\n", point, sim_time);
 }
 int main(int argc, char **argv)
 {
