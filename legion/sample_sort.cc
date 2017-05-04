@@ -9,14 +9,23 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <sys/time.h>
 
 //#define VERBOSE
+//#define OUTPUT
+#define USE_ASAD 0
 
 using namespace std;
 using namespace Legion;
 using namespace LegionRuntime::Accessor;
 using namespace LegionRuntime::Accessor::AccessorType;
 using namespace LegionRuntime::Arrays;
+
+void printTime(struct timeval &tv1, struct timeval &tv2, const char *msg) {
+    printf ("%s = %f seconds\n", msg,
+        (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+        (double) (tv2.tv_sec - tv1.tv_sec));
+}
 
 enum TaskIDs
 {
@@ -43,7 +52,7 @@ struct InputData
 
 void readFile(const char *fileName, std::vector<int> &vect)
 {
-    printf("Trying to read file\n\n");
+    // printf("Trying to read file\n\n");
     ifstream in(fileName);
     stringstream buffer;
     buffer << in.rdbuf();
@@ -97,6 +106,10 @@ void top_level_task(const Task *task,
         .num_elements = num_elements,
         .num_subregions = num_subregions
     };
+    vector<int> input_array;
+    readFile(filename, input_array);
+    num_elements = input_array.size();
+
     printf("Partitioning data into %d sub-regions...\n", num_subregions);
 
     // ----------------- Index Spaces -----------------
@@ -243,10 +256,6 @@ void top_level_task(const Task *task,
     Domain launch_domain = color_domain;
     ArgumentMap arg_map;
 
-
-
-
-
     // Reading input
     RegionRequirement req(input_lr, READ_WRITE, EXCLUSIVE, input_lr);
     req.add_field(FID_X);
@@ -255,8 +264,6 @@ void top_level_task(const Task *task,
     input_region.wait_until_valid();
     RegionAccessor<AccessorType::Generic, int> acc_x =
         input_region.get_field_accessor(FID_X).typeify<int>();
-    vector<int> input_array;
-    readFile(filename, input_array);
     int i = 0;
     for(GenericPointInRectIterator<1>pir(input_rect); pir; pir++){
         #ifdef VERBOSE
@@ -276,6 +283,10 @@ void top_level_task(const Task *task,
     init_launcher.region_requirements[0].add_field(FID_X);
     runtime->execute_task(ctx, init_launcher);*/
 
+    struct timeval tv0, tv1, tv2;
+    gettimeofday(&tv1, NULL);
+    tv0 = tv1;
+
     // Sort each sub-region locally
     IndexLauncher qsort_launcher(QSORT_TASK_ID, launch_domain,
                                  TaskArgument(&num_subregions, sizeof(int)), arg_map);
@@ -290,6 +301,8 @@ void top_level_task(const Task *task,
     qsort_launcher.region_requirements[1].add_field(FID_X);
     runtime->execute_index_space(ctx, qsort_launcher);
 
+    gettimeofday(&tv2, NULL);
+    printTime(tv1, tv2, "Phase I (local sort)");
 
     TaskLauncher gather_splitter_task(ONE_TASK_ID, TaskArgument(&num_subregions, sizeof(int)));
 
@@ -304,6 +317,8 @@ void top_level_task(const Task *task,
     gather_splitter_task.region_requirements[2].add_field(FID_X);
     runtime->execute_task(ctx, gather_splitter_task);
 
+    gettimeofday(&tv1, NULL);
+    printTime(tv2, tv1, "Phase II (gather splitters)");
 
     // Write indexes for each bucket
 
@@ -326,6 +341,8 @@ void top_level_task(const Task *task,
     p_bucket_task_launcher.region_requirements[2].add_field(FID_X);
     runtime->execute_index_space(ctx, p_bucket_task_launcher);
 
+    gettimeofday(&tv2, NULL);
+    printTime(tv1, tv2, "Phase III (collect buckets)");
 
     IndexLauncher qsort_bucket_task_launcher(QSORT_BUCKET_ID, launch_domain,
             TaskArgument(&num_subregions, sizeof(int)), arg_map);
@@ -355,7 +372,9 @@ void top_level_task(const Task *task,
     qsort_bucket_task_launcher.region_requirements[4].add_field(FID_X);
     runtime->execute_index_space(ctx, qsort_bucket_task_launcher);
 
-
+    gettimeofday(&tv1, NULL);
+    printTime(tv2, tv1, "Phase IV (sort buckets)");
+    printTime(tv0, tv1, "Total time");
 
     TaskLauncher check_launcher(CHECKER_TASK_ID, TaskArgument(NULL, 0));
     check_launcher.add_region_requirement(
@@ -442,18 +461,21 @@ void qsort_task(const Task *task,
                 const std::vector<PhysicalRegion> &regions,
                 Context ctx, Runtime *runtime)
 {
-    double ts_start, ts_end;
-    ts_start = Realm::Clock::current_time_in_microseconds();
     assert(regions.size() == 2);
     assert(task->regions.size() == 2);
 
+#if USE_ASAD
+    double ts_start, ts_end;
+    ts_start = Realm::Clock::current_time_in_microseconds();
     const int point = task->index_point.point_data[0];
     printf("Running qsort computation with for point %d...\n",
            point);
-
+#endif
 
     const int num_subregions = *((const int*)task->args);
+    #ifdef VERBOSE
     printf("Num sub regions is %d\n", num_subregions);
+    #endif
 
 
     RegionAccessor<AccessorType::Generic, int> acc_x =
@@ -511,9 +533,11 @@ void qsort_task(const Task *task,
         pir++;
     }
 
+#if USE_ASAD
     ts_end = Realm::Clock::current_time_in_microseconds();
     double sim_time = (ts_end - ts_start);
     printf("qsort_task [%d] - Time taken: %7.3f microseconds\n", point, sim_time);
+#endif
 }
 
 
@@ -523,9 +547,11 @@ void p_bucket_task(const Task *task,
                    Context ctx, Runtime *runtime)
 {
 
+#if USE_ASAD
     double ts_start, ts_end;
     ts_start = Realm::Clock::current_time_in_microseconds();
     const int point = task->index_point.point_data[0];
+#endif
 
     FieldID fid_input  = *(task->regions[0].privilege_fields.begin());
     FieldID fid_split  = *(task->regions[1].privilege_fields.begin());
@@ -621,9 +647,11 @@ void p_bucket_task(const Task *task,
       }
     */
 
+#if USE_ASAD
     ts_end = Realm::Clock::current_time_in_microseconds();
     double sim_time = (ts_end - ts_start);
     printf("p_bucket_task [%d] - Time taken: %7.3f microseconds\n", point, sim_time);
+#endif
 }
 
 void qsort_bucket_task(const Task *task,
@@ -631,9 +659,10 @@ void qsort_bucket_task(const Task *task,
                        Context ctx, Runtime *runtime)
 {
 
-
+#if USE_ASAD
     double ts_start, ts_end;
     ts_start = Realm::Clock::current_time_in_microseconds();
+#endif
 
     assert(regions.size() == 5);
     // FieldID fid = *(task->regions[0].privilege_fields.begin());
@@ -800,9 +829,11 @@ void qsort_bucket_task(const Task *task,
     }
 #endif
 
+#if USE_ASAD
     ts_end = Realm::Clock::current_time_in_microseconds();
     double sim_time = (ts_end - ts_start);
     printf("qsort_bucket_task [%d] - Time taken: %7.3f microseconds\n", bucket, sim_time);
+#endif
 
 }
 
@@ -811,9 +842,11 @@ void one_task(const Task *task,
               Context ctx, Runtime *runtime)
 {
 
+#if USE_ASAD
     double ts_start, ts_end;
     ts_start = Realm::Clock::current_time_in_microseconds();
     const int point = task->index_point.point_data[0];
+#endif
     assert(regions.size() == 3);
     assert(task->regions.size() == 3);
     const int num_subregions = *((const int*)task->args);
@@ -856,15 +889,19 @@ void one_task(const Task *task,
         g_split_ptr[i] = ((int*)(split_ptr))[(num_subregions-1)*(i+1)];
     }
 
+    #ifdef VERBOSE
     for (GenericPointInRectIterator<1> pir(g_split_rect); pir; pir++)
     {
         int expected = acc_g.read(DomainPoint::from_point<1>(pir.p));
         printf("Global Splitter Value is %d\n", expected);
     }
+    #endif
 
+#if USE_ASAD
     ts_end = Realm::Clock::current_time_in_microseconds();
     double sim_time = (ts_end - ts_start);
     printf("one_task [%d] - Time taken: %7.3f microseconds\n", point, sim_time);
+#endif
 }
 
 void checker_task(const Task *task,
@@ -872,9 +909,11 @@ void checker_task(const Task *task,
                   Context ctx, Runtime *runtime)
 {
 
+#if USE_ASAD
     double ts_start, ts_end;
     ts_start = Realm::Clock::current_time_in_microseconds();
     const int point = task->index_point.point_data[0];
+#endif
     assert(regions.size() == 2);
     printf("Running checker_task\n");
     RegionAccessor<AccessorType::Generic, int> acc_output =
@@ -914,14 +953,18 @@ void checker_task(const Task *task,
             #ifdef VERBOSE
                 printf("Writing to output.txt: %d\n", current_value);
             #endif
+#ifdef OUTPUT
             myfile << current_value << " ";
+#endif
         }
         myfile.close();
     }
 
+#if USE_ASAD
     ts_end = Realm::Clock::current_time_in_microseconds();
     double sim_time = (ts_end - ts_start);
     printf("checker_task [%d] - Time taken: %7.3f microseconds\n", point, sim_time);
+#endif
 }
 int main(int argc, char **argv)
 {
