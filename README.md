@@ -50,7 +50,10 @@ Legion Setup
 4. Run sample_sort (arguments: -f input filename, -n number of elements,
    -b number of subregions)
 
-   ```$ ./sample_sort -f input.txt -n 10 -b 2```
+   ```
+   $ ./sample_sort -f input.txt -n 10 -b 2
+   $ ./sample_sort -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt -b 1
+   ```
 
 
 starPU Setup
