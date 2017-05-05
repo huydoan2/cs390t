@@ -1,3 +1,4 @@
 sample_sort
 *.o
 output.txt
+worker.txt
