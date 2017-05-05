@@ -12,6 +12,12 @@ using namespace std;
 
 int NUM_CPU = 4;
 
+void printTime(struct timeval &tv1, struct timeval &tv2, const char *msg) {
+    printf ("%s = %f seconds\n", msg,
+        (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+        (double) (tv2.tv_sec - tv1.tv_sec));
+}
+
 /// Test callback
 void cb(void *msg)
 {
@@ -235,7 +241,7 @@ int main(int argc, char **argv)
     }
 
     int ret;
-    struct timeval begin, end;
+    struct timeval begin, tv1, tv2;
 
     /* Initialize StarPU with default configuration */
     ret = starpu_init(NULL);
@@ -250,7 +256,8 @@ int main(int argc, char **argv)
     int last_blk_size = (len % NUM_CPU == 0) ? reg_blk_size : len % NUM_CPU;
 
     // Start the timer
-    gettimeofday(&begin, NULL);
+    gettimeofday(&tv1, NULL);
+    begin = tv1;
 
     // ********************************************/
     // I - Local sort every block and pick splitters//
@@ -298,6 +305,9 @@ int main(int argc, char **argv)
         starpu_data_unregister(splitter_handles[i]);
     }
 
+    gettimeofday(&tv2, NULL);
+    printTime(tv1, tv2, "Phase I (local sort)");
+
     // Sort the splitters array
     qsort(splitters, NUM_CPU * (NUM_CPU - 1), sizeof(int), compare);
 
@@ -311,6 +321,9 @@ int main(int argc, char **argv)
 
     starpu_data_handle_t g_splitters_handle;
     starpu_vector_data_register(&g_splitters_handle, STARPU_MAIN_RAM, (uintptr_t)g_splitters, NUM_CPU - 1, sizeof(int));
+
+    gettimeofday(&tv1, NULL);
+    printTime(tv2, tv1, "Phase II (gather splitters)");
 
     // ********************************************/
     // III - Each processor sort data to buckets
@@ -428,6 +441,13 @@ int main(int argc, char **argv)
     for (int i = 1; i < NUM_CPU; ++i)
         sizes_redux[i] = sizes_redux[i - 1] + bucket_sizes[i - 1];
 
+    #ifdef SYNC
+    // No need to sync here, but insane for measure the phase time
+    starpu_task_wait_for_all();
+    #endif
+    gettimeofday(&tv2, NULL);
+    printTime(tv1, tv2, "Phase III (collect buckets)");
+
     // ********************************************/
     // IV - Local sort each bucket
     int *out = new int[len];
@@ -462,7 +482,9 @@ int main(int argc, char **argv)
     #endif
     
     // End the timer
-    gettimeofday(&end, NULL);
+    gettimeofday(&tv1, NULL);
+    printTime(tv2, tv1, "Phase IV (sort buckets)");
+    printTime(begin, tv1, "Total time");
     
     for(int i = 0; i < NUM_CPU; ++i)
     {
@@ -509,10 +531,6 @@ int main(int argc, char **argv)
     ofstream out_file("output.txt");
     int blk_size;
     int cpu;
-
-    // print out execution time
-    unsigned long long exec_time = (end.tv_sec - begin.tv_sec)*1000000L + (end.tv_usec - begin.tv_usec);
-    cout << "exec time: " << exec_time/1000 << "ms" << endl;
 
     for (int i = 0; i < len; ++i)
     {
