@@ -37,8 +37,14 @@
 
 #define localsplitter 3
 
-
 using namespace std;
+
+void printTime(struct timeval &tv1, struct timeval &tv2, const char *msg) {
+    printf ("%s = %f seconds\n", msg,
+        (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+        (double) (tv2.tv_sec - tv1.tv_sec));
+}
+
 struct ArrayOp
 {
     int* a;
@@ -227,7 +233,6 @@ int main(int argc, char *argv[])
         myfile >> a[i];
         // cout << a[i] << " ";
     }
-    // cout << endl;
 
     int n;
     int numThreads = atoi(argv[2]);
@@ -285,16 +290,24 @@ int main(int argc, char *argv[])
         }
     }
 
-    struct timeval tv_start, tv_end;
-    gettimeofday(&tv_start, NULL);
-
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), ArrayOp{a,b,n,numThreads});
 
+    struct timeval tv_start, tv1, tv2;
+    gettimeofday(&tv_start, NULL);
+    tv1 = tv_start;
+
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), Sort{a,b,n,numThreads});
+
+    gettimeofday(&tv2, NULL);
+    printTime(tv1, tv2, "Phase I (local sort)");
+
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), gathersplit{gath,b,n,p,numThreads});
 
     quickSort(gath,0,numThreads*(p-1)-1);
-    
+
+    gettimeofday(&tv1, NULL);
+    printTime(tv2, tv1, "Phase II (gather splitters)");    
+
     int x=0;
     int y=numThreads*(p-1);
     for (i=y/numThreads-1; i<y; i+=y/numThreads+1)
@@ -322,22 +335,19 @@ int main(int argc, char *argv[])
     {
         Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), fin_merge{b,bb,size,sum,index_mat,k,numThreads});
     }
-    printf("\nDone\n");
 
+    gettimeofday(&tv2, NULL);
+    printTime(tv1, tv2, "Phase III (collect buckets)");
 
     for(int k=0; k<numThreads; k++)
     {
         xo[k]=size[numThreads-1][k]+sum[k][numThreads-1];
     }
 
-    cout<<"----------------------------------------------------------------------"<<endl;
-
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), Sort_post{a,bb,xo,numThreads});
-    gettimeofday(&tv_end, NULL);
-    printf ("Total time = %f seconds\n",
-        (double) (tv_end.tv_usec - tv_start.tv_usec) / 1000000 +
-        (double) (tv_end.tv_sec - tv_start.tv_sec));
-    //std::cout << float( clock () - begin_time ) /  CLOCKS_PER_SEC;
+    gettimeofday(&tv1, NULL);
+    printTime(tv2, tv1, "Phase IV (sort buckets)");
+    printTime(tv_start, tv1, "Total time");
 
 #ifdef VERBOSE
     for(int k=0; k<numThreads; k++)

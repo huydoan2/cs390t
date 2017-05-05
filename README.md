@@ -102,6 +102,12 @@ starPU Setup
   ..* Output is in output.txt
   ..* Trace is in .trace, use vite to open
 
+The command the measurement uses:
+
+```
+$ SYNC=1 STARPU_SCHED=prio ./sample_sort 1 /work/04009/yuhc/cs395t-data/data/rnd_100M.txt
+```
+
 
 Galois Setup
 ============
@@ -138,6 +144,11 @@ Galois Setup
    $ cd /path/to/release
    $ ./apps/sample_sort/array input.txt 2
    ```
+The command the measurement uses:
+
+```
+$ ./apps/sample_sort/array /work/04009/yuhc/cs395t-data/data/rnd_100M.txt 2
+```
 
 PVFMM Setup (Editing)
 =====================
