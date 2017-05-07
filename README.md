@@ -150,8 +150,8 @@ The command the measurement uses:
 $ ./apps/sample_sort/array /work/04009/yuhc/cs395t-data/data/rnd_100M.txt 2
 ```
 
-PVFMM Setup (Editing)
-=====================
+PVFMM Setup
+===========
 
 1. Build PVFMM
 
@@ -174,3 +174,11 @@ PVFMM Setup (Editing)
    $ ibrun -np 2 bin/hyper_qsort -N 100000 -omp 1
    $ ibrun -np 2 bin/hyper_qsort -f /work/04009/yuhc/cs395t-data/data/rnd_10M.txt -omp 1
    ```
+
+MergeSort
+=========
+
+```
+$ cd in-house/ompsort; make
+$ OMP_NUM_THREADS=2 ./ex1.x -f /work/04009/yuhc/cs395t-data/data/rnd_100M.txt
+```
