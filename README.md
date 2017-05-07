@@ -52,7 +52,7 @@ Legion Setup
 
    ```
    $ ./sample_sort -f input.txt -n 10 -b 2
-   $ ./sample_sort -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt -b 1
+   $ ./sample_sort -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt -b 1 -ll:cpu 1
    ```
 
 
@@ -172,5 +172,5 @@ PVFMM Setup (Editing)
    $ export PVFMM_DIR=/path/to/install/pvfmm/dir/share/pvfmm
    $ cd examples && make
    $ ibrun -np 2 bin/hyper_qsort -N 100000 -omp 1
-   $ ibrun -np 2 bin/hyper_qsort -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt -omp 1
+   $ ibrun -np 2 bin/hyper_qsort -f /work/04009/yuhc/cs395t-data/data/rnd_10M.txt -omp 1
    ```
