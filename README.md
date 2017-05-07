@@ -7,13 +7,13 @@ Data Generation
 ```
 $ cd data && make
 $ ./generator 1000 1K
-$ ./generator 10000 10K
-$ ./generator 100000 100K
-$ ./generator 1000000 1M
-$ ./generator 10000000 10M
 ```
 
 `1K` is the suffix of the filename. It generates four types of input data.
+
+The input data is put in `/work/04009/yuhc/cs395t-data/data`. It is shared among course group members.
+
+TODO: separate the input data into files for multiple nodes to read.
 
 Perf the performance
 ====================
@@ -25,7 +25,7 @@ $ perf stat -B -e L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,L1-dcac
 For most benchmarks, you may use something like `-f /path/to/data/inc_1K.txt` as input. For example:
 
 ```
-$ perf stat -B -e L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,L1-dcache-store-misses,dTLB-loads,dTLB-load-misses,dTLB-stores,dTLB-store-misses ./ex1.x -f ~/cs390t/data/inc_1K.txt
+$ perf stat -B -e L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,L1-dcache-store-misses,dTLB-loads,dTLB-load-misses,dTLB-stores,dTLB-store-misses ./ex1.x -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt
 ```
 
 Legion Setup
@@ -50,7 +50,10 @@ Legion Setup
 4. Run sample_sort (arguments: -f input filename, -n number of elements,
    -b number of subregions)
 
-   ```$ ./sample_sort -f input.txt -n 10 -b 2```
+   ```
+   $ ./sample_sort -f input.txt -n 10 -b 2
+   $ ./sample_sort -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt -b 1 -ll:cpu 1
+   ```
 
 
 starPU Setup
@@ -76,7 +79,7 @@ starPU Setup
    $ make install
    ```
 
-4. In starPU folder, make and install
+4. In starPU folder, make and install (add `--disable-debug --disable-fortran --disable-opencl` flags to disable debugging mode.
    ```
    $ module load autotools/1.1
    $ ./autogen.sh
@@ -95,9 +98,15 @@ starPU Setup
 
 6. Compile the sample_sort code by running `make`
 7. Set the STARPU_GENERATE_TRACE=1
-7. Run it by `STARPU_SCHED=lws ./sample_sort 1m.txt` using the 1m.txt input and scheduler locality work stealing
+7. Run it by `SYNC=1 STARPU_SCHED=lws ./sample_sort 16 1m.txt` using syncing 16 processors the 1m.txt input and scheduler locality work stealing
   ..* Output is in output.txt
   ..* Trace is in .trace, use vite to open
+
+The command the measurement uses:
+
+```
+$ SYNC=1 STARPU_SCHED=prio ./sample_sort 1 /work/04009/yuhc/cs395t-data/data/rnd_100M.txt
+```
 
 
 Galois Setup
@@ -135,9 +144,14 @@ Galois Setup
    $ cd /path/to/release
    $ ./apps/sample_sort/array input.txt 2
    ```
+The command the measurement uses:
 
-PVFMM Setup (Editing)
-=====================
+```
+$ ./apps/sample_sort/array /work/04009/yuhc/cs395t-data/data/rnd_100M.txt 2
+```
+
+PVFMM Setup
+===========
 
 1. Build PVFMM
 
@@ -157,5 +171,14 @@ PVFMM Setup (Editing)
    $ make && make install
    $ export PVFMM_DIR=/path/to/install/pvfmm/dir/share/pvfmm
    $ cd examples && make
-   $ idev -A ibrun -np 2 bin/hyper_qsort -N 100000 -omp 1
+   $ ibrun -np 2 bin/hyper_qsort -N 100000 -omp 1
+   $ ibrun -np 2 bin/hyper_qsort -f /work/04009/yuhc/cs395t-data/data/rnd_10M.txt -omp 1
    ```
+
+MergeSort
+=========
+
+```
+$ cd in-house/ompsort; make
+$ OMP_NUM_THREADS=2 ./ex1.x -f /work/04009/yuhc/cs395t-data/data/rnd_100M.txt
+```
