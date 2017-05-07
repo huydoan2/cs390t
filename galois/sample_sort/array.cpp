@@ -35,6 +35,8 @@
 #include <string.h>
 #include <sys/time.h>
 
+//#define VERBOSE
+
 #define localsplitter 3
 
 using namespace std;
@@ -126,7 +128,8 @@ void quickSort(int* arr, int left, int right)
 {
     int i = left, j = right;
     int tmp;
-    int pivot = arr[(left + right) / 2];
+    //int pivot = arr[(right + left) / 2];
+    int pivot = arr[left];
 
     /* partition */
     while (i <= j)
@@ -233,6 +236,7 @@ int main(int argc, char *argv[])
         myfile >> a[i];
         // cout << a[i] << " ";
     }
+    // cout << endl;
 
     int n;
     int numThreads = atoi(argv[2]);
@@ -300,6 +304,7 @@ int main(int argc, char *argv[])
 
     gettimeofday(&tv2, NULL);
     printTime(tv1, tv2, "Phase I (local sort)");
+    if (numThreads == 1) return 0;
 
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), gathersplit{gath,b,n,p,numThreads});
 
@@ -315,7 +320,7 @@ int main(int argc, char *argv[])
         finpar[x]=gath[i];
         x++;
     }
-    finpar[x]=10000;
+    finpar[x]=N;
 
     y=0;
 
@@ -329,7 +334,6 @@ int main(int argc, char *argv[])
 
         }
     }
-    //std::cout << float( clock () - c1 ) /  CLOCKS_PER_SEC<<std::endl;
 
     for(int k=0; k<numThreads; k++)
     {
@@ -343,6 +347,8 @@ int main(int argc, char *argv[])
     {
         xo[k]=size[numThreads-1][k]+sum[k][numThreads-1];
     }
+
+    gettimeofday(&tv1, NULL);
 
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), Sort_post{a,bb,xo,numThreads});
     gettimeofday(&tv1, NULL);
