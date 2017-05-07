@@ -1,29 +1,9 @@
-/** My first Galois program -*- C++ -*-
- * @file
- * @section License
- *
- * Galois, a framework to exploit amorphous data-parallelism in irregular
- * programs.
- *
- * Copyright (C) 2013, The University of Texas at Austin. All rights reserved.
- * UNIVERSITY EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES CONCERNING THIS
- * SOFTWARE AND DOCUMENTATION, INCLUDING ANY WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR ANY PARTICULAR PURPOSE, NON-INFRINGEMENT AND WARRANTIES OF
- * PERFORMANCE, AND ANY WARRANTY THAT MIGHT OTHERWISE ARISE FROM COURSE OF
- * DEALING OR USAGE OF TRADE.  NO WARRANTY IS EITHER EXPRESS OR IMPLIED WITH
- * RESPECT TO THE USE OF THE SOFTWARE OR DOCUMENTATION. Under no circumstances
- * shall University be liable for incidental, special, indirect, direct or
- * consequential damages or loss of profits, interruption of business, or
- * related expenses which may arise from use of Software or Documentation,
- * including but not limited to those resulting from defects in Software and/or
- * Documentation, or loss or inaccuracy of data of any kind.
- *
- * @section Description
- *
- * My first Galois program. Prints "Hello World" in parallel.
- *
- * @author Donald Nguyen <ddn@cs.utexas.edu>
- */
+ 
+
+/*
+Written by Tushar Singh Chouhan <tushar.chauhan94@utexas.edu>
+*/
+
 #include "Galois/Galois.h"
 #include <boost/iterator/counting_iterator.hpp>
 #include <iostream>
@@ -33,21 +13,40 @@
 #include <string>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #define localsplitter 3
 
 
 using namespace std;
+
+
+timespec diff(timespec start, timespec end)
+{
+	timespec temp;
+	if ((end.tv_nsec-start.tv_nsec)<0) {
+		temp.tv_sec = end.tv_sec-start.tv_sec-1;
+		temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+	} else {
+		temp.tv_sec = end.tv_sec-start.tv_sec;
+		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+	}
+	return temp;
+}
+
 struct ArrayOp {
    int* a;int** b;int n; int numThreads;
    void operator ()(int i) {
 	int j;//int b[numThreads][5];
+	timespec tp,fp;
+	//clock_gettime(CLOCK_MONOTONIC,&tp);
 	// std::cout << "a = " << a << ", i = " << i << std::endl;
 	for( j=i*n;j<i*n+n;j++) {
 	b[i][j%n]=a[j];
 	//std::cout <<i<<" = " <<a[j] << "/" << std::endl;
 	}
-   	
+	//clock_gettime(CLOCK_MONOTONIC,&fp);
+   	//cout<<"Thread "<<i<<" = "<<diff(tp,fp).tv_nsec<<endl;
 	//quicksort(&b[i][0]);
 	 }
 };
@@ -126,15 +125,34 @@ void quickSort(int* arr, int left, int right) {
 struct Sort{
  int* a;int** b;int n; int numThreads;
 void operator () (int i){
-
+timespec tp,fp;
+	//clock_gettime(CLOCK_MONOTONIC,&tp);
 	quickSort(&b[i][0],0,n-1);
+//clock_gettime(CLOCK_MONOTONIC,&fp);
+   	//cout<<"Thread "<<i<<" = "<<diff(tp,fp).tv_nsec<<endl;
 	}
 };
+
+struct Hello{
+ int numThreads;
+void operator () (int i){
+timespec tp,fp;
+//	clock_gettime(CLOCK_MONOTONIC,&tp);
+	cout<<i<<" Hello "<<endl;
+//clock_gettime(CLOCK_MONOTONIC,&fp);
+  // 	cout<<"Thread "<<i<<" = "<<diff(tp,fp).tv_nsec<<endl;
+	}
+};
+
+
 struct Sort_post{
  int* a;int **b;int *n; int numThreads;
 void operator () (int i){
-
+timespec tp,fp;
+//	clock_gettime(CLOCK_MONOTONIC,&tp);
 	quickSort(&b[i][0],0,n[i]-1);
+//clock_gettime(CLOCK_MONOTONIC,&fp);
+   	//cout<<"Thread "<<i<<" = "<<diff(tp,fp).tv_nsec<<endl;
 	}
 };
 
@@ -165,19 +183,14 @@ int i,j;std::cout<<""<<std::endl;
 
 int main(int argc,char **argv) {
 
-
+const clock_t read = clock();
 
 int length;
 ifstream myfile;
 
 myfile.open(argv[2]);
-string line;
-getline(myfile,line);
-string s1;
-stringstream ss1(line);
-getline(ss1,s1,',');
-stringstream convert(s1);		
-convert>>length;
+
+myfile>>length;
 ofstream output;
 output.open("output");
 
@@ -187,22 +200,15 @@ output.open("output");
 int* a = new int[length];
 int count=0;
 
-cout<<"----------------------------------------------------------------------"<<endl;
-while(getline(myfile,line))
-{	string s;
-	stringstream ss(line);
-	while(getline(ss,s,',') && count <length)
-	{	if(s!="\0")
-		{
-		stringstream convert(s);		
-		convert>>a[count];
-		//cout<<a[count]<<endl;
-		count++;}	
-	}
+cout<<"Reading the file ----------------------------------------------------------------------"<<endl;
+
+ for (int i = 0; i < length; ++i) {
+        myfile >> a[i];
+        // cout << a[i] << " ";
 }
+std::cout << "Time for Reading = "<<float( clock () - read ) /  CLOCKS_PER_SEC<<std::endl;
 
-
-cout<<"----------------------------------------------------------------------"<<endl;
+cout<<"Starting Sample Sort----------------------------------------------------------------------"<<endl;
 
 
 
@@ -217,6 +223,7 @@ int finpar[numThreads];
 
 int **b=new int*[numThreads];
 n=ceil(m/numThreads);
+cout<<"per thread length = "<< n;
 int j;
 int p=localsplitter;
 int gath[numThreads*(p-1)];
@@ -225,7 +232,7 @@ for(i=0;i<numThreads;i++)
 	b[i]=new int[m];
 }  
   std::cout << "Using " << numThreads << " threads and " << n << " iterations\n";
-  numThreads = Galois::setActiveThreads(numThreads);
+ // numThreads = Galois::setActiveThreads(numThreads);
 	int **bb=new int*[numThreads];
 	int **index_mat=new int*[numThreads];
 	int **size=new int*[numThreads];	
@@ -255,49 +262,54 @@ for(int k=0;k<numThreads;k++)
 		{	bb[k][kk]=0;
 		}
 	}
-const clock_t begin_time = clock();
+
  // std::cout << "Using a function object\n";
 //  Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), HelloWorld());
 
 // std::cout << "Using a function pointer\n";
- Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), ArrayOp{a,b,n,numThreads});
- 
+//Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), Hello{numThreads}); 
+Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), ArrayOp{a,b,n,numThreads});
+ const clock_t begin_time = clock();
  //std::cout<<"HERE"<<std::endl;
  //print(b,numThreads,n);
 const clock_t c1=clock(); 
  Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), Sort{a,b,n,numThreads});
 // std::cout<<"Sorted"<<std::endl;
- //print(b,numThreads,n);
+// print(b,numThreads,n);
 
+std::cout <<"Local Sorting = " << float( clock () - c1 ) /  CLOCKS_PER_SEC<<std::endl;
+const clock_t c4=clock();
 Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), gathersplit{gath,b,n,p,numThreads});
+std::cout <<"Gather = " << float( clock () - c4 ) /  CLOCKS_PER_SEC<<std::endl;
 	//std::cout<<"n/p = "<<n/p;	
 
 	
-	//printf("\nGathering:\n"); 
-	/*for (i=0;i<numThreads*(p-1);i++)
+	/*printf("\nGathering:\n"); 
+	for (i=0;i<numThreads*(p-1);i++)
 	{
 		std::cout<<" " <<gath[i];
 	}*/	
- 
+ const clock_t c5=clock();
 	quickSort(gath,0,numThreads*(p-1)-1);
-	//printf("\nSorted:\n");
+std::cout <<"Local Sorting Gather = " << float( clock () - c5 ) /  CLOCKS_PER_SEC<<std::endl;
+	/*printf("\nSorted:\n");
 	
-	/*for (i=0;i<numThreads*(p-1);i++)
+	for (i=0;i<numThreads*(p-1);i++)
 	{
 		std::cout<<" " <<gath[i];
-	}	*/
-	int x=0;int y=numThreads*(p-1);
+	}	
+	*/int x=0;int y=numThreads*(p-1);
 	 for (i=y/numThreads-1;i<y;i+=y/numThreads+1)
 	{
 		finpar[x]=gath[i];
 		x++;
 	}	
-	//printf("Finpar:\n%d\n",x);
-	/*for (i=0;i<x;i++)
+	/*printf("Finpar:\n%d\n",x);
+	for (i=0;i<x;i++)
 	{
 		std::cout<<" " <<finpar[i];
-	}*/
-	
+	}
+	*/
 	finpar[x]=10000;	
 	
 	
@@ -350,7 +362,6 @@ printf("\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n");*/
 					
 		}
 	}
-std::cout << float( clock () - c1 ) /  CLOCKS_PER_SEC<<std::endl;
 	/*for(int k=0;k<numThreads;k++)
 	{
 		for(int kk=0;kk<numThreads;kk++)
@@ -369,11 +380,13 @@ printf("\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n");*/
 	}*/
 	
 
+const clock_t begin_time1 = clock();
 for(int k=0;k<numThreads;k++)
 	{
 	Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), fin_merge{b,bb,size,sum,index_mat,k,numThreads});	
 	}
-printf("\nDone\n");
+
+std::cout << "Time for merging the different values in the correct bins = "<<float( clock () - begin_time1 ) /  CLOCKS_PER_SEC<<std::endl;
 
 
 
@@ -382,7 +395,7 @@ printf("\nDone\n");
 		xo[k]=size[numThreads-1][k]+sum[k][numThreads-1];
 	}	
 		
-	cout<<"----------------------------------------------------------------------"<<endl;
+	
 
 	/*for(int k=0;k<numThreads;k++)
 	{
@@ -390,15 +403,23 @@ printf("\nDone\n");
 		{	std::cout<<bb[k][kk]<<std::endl;
 		}
 	}*/
-	Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), Sort_post{a,bb,xo,numThreads});
-std::cout << float( clock () - begin_time ) /  CLOCKS_PER_SEC;
+const clock_t sort_t=clock();	
+Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), Sort_post{a,bb,xo,numThreads});
 
+std::cout << "Time for final local sort = "<<float( clock () - sort_t ) /  CLOCKS_PER_SEC<<std::endl;
+std::cout << "Total Time for sample sort = "<<float( clock () - begin_time ) /  CLOCKS_PER_SEC<<std::endl;
+cout<<"Sample Sort Completed----------------------------------------------------------------------"<<endl;
+	cout<<"Writing to output file----------------------------------------------------------------------"<<endl;
+const clock_t writ = clock();
 	for(int k=0;k<numThreads;k++)
 	{
 		for(int kk=0;kk<xo[k];kk++)
 		{	output<<bb[k][kk]<<endl;
 		}
 	}	
+
+cout<<"Writing to output file Completed----------------------------------------------------------------------"<<endl;
+std::cout << "Time for writing = "<<float( clock () - writ ) /  CLOCKS_PER_SEC<<std::endl;
 	bb=NULL;b=NULL;a=NULL;
 	/*delete []bb;
 	delete []b;
