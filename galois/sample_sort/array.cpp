@@ -183,7 +183,7 @@ struct Sort_post
     void operator () (int i)
     {
        // quickSort(&b[i][0],0,n[i]-1);
-       qsort(b[i],n,sizeof(int), compare);
+       qsort(b[i],n[i],sizeof(int), compare);
     }
 };
 
@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), gathersplit{gath,b,n,p,numThreads});
 
     //quickSort(gath,0,numThreads*(p-1)-1);
-    qsort(b[i],numThreads*(p-1),sizeof(int), compare);
+    qsort(gath,numThreads*(p-1),sizeof(int), compare);
 
     gettimeofday(&tv1, NULL);
     printTime(tv2, tv1, "Phase II (gather splitters)");    
