@@ -39,6 +39,13 @@
 
 using namespace std;
 
+int compare(const void* a, const void* b)
+{
+   return (*(int *)a - *(int*)b);
+
+}
+
+
 void printTime(struct timeval &tv1, struct timeval &tv2, const char *msg) {
     printf ("%s = %f seconds\n", msg,
         (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
@@ -163,7 +170,8 @@ struct Sort
     void operator () (int i)
     {
 
-        quickSort(&b[i][0],0,n-1);
+        //quickSort(&b[i][0],0,n-1);
+        qsort(b[i],n,sizeof(int), compare);
     }
 };
 struct Sort_post
@@ -174,8 +182,8 @@ struct Sort_post
     int numThreads;
     void operator () (int i)
     {
-
-        quickSort(&b[i][0],0,n[i]-1);
+       // quickSort(&b[i][0],0,n[i]-1);
+       qsort(b[i],n,sizeof(int), compare);
     }
 };
 
@@ -307,7 +315,8 @@ int main(int argc, char *argv[])
 
     Galois::do_all(boost::make_counting_iterator<int>(0), boost::make_counting_iterator<int>(numThreads), gathersplit{gath,b,n,p,numThreads});
 
-    quickSort(gath,0,numThreads*(p-1)-1);
+    //quickSort(gath,0,numThreads*(p-1)-1);
+    qsort(b[i],numThreads*(p-1),sizeof(int), compare);
 
     gettimeofday(&tv1, NULL);
     printTime(tv2, tv1, "Phase II (gather splitters)");    
