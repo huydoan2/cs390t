@@ -37,8 +37,6 @@
 
 //#define VERBOSE
 
-#define localsplitter 3
-
 using namespace std;
 
 void printTime(struct timeval &tv1, struct timeval &tv2, const char *msg) {
@@ -240,6 +238,7 @@ int main(int argc, char *argv[])
 
     int n;
     int numThreads = atoi(argv[2]);
+    int localsplitter = numThreads;
     int m = N;
 
     int i=0;

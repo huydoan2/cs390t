@@ -10,7 +10,15 @@
 
 using namespace std;
 
+define SYNC
+
 int NUM_CPU = 4;
+
+void printTime(struct timeval &tv1, struct timeval &tv2, const char *msg) {
+    printf ("%s = %f seconds\n", msg,
+        (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+        (double) (tv2.tv_sec - tv1.tv_sec));
+}
 
 /// Test callback
 void cb(void *msg)
@@ -212,6 +220,12 @@ int main(int argc, char **argv)
     cout << "NUM_CPU " << NUM_CPU << endl;
     cout << "Length: " << len << endl;
 
+#ifdef SYNC
+    cout << "SYNC enabled\n";
+#else
+    cout << "SYNC disabled; phase measurement is not accurate\n";
+#endif
+
     int *arr = new int[len];
     int *splitters = new int[(NUM_CPU - 1) * NUM_CPU];
     int *g_splitters = new int[NUM_CPU - 1];
@@ -237,7 +251,6 @@ int main(int argc, char **argv)
     in_file.close();
 
     int ret;
-    struct timeval begin, end;
 
     /* Initialize StarPU with default configuration */
     ret = starpu_init(NULL);
@@ -252,7 +265,9 @@ int main(int argc, char **argv)
     int last_blk_size = (len % NUM_CPU == 0) ? reg_blk_size : len % NUM_CPU;
 
     // Start the timer
-    gettimeofday(&begin, NULL);
+    struct timeval tv0, tv1, tv2;
+    gettimeofday(&tv1, NULL);
+    tv0 = tv1;
 
     // ********************************************/
     // I - Local sort every block and pick splitters//
@@ -294,12 +309,16 @@ int main(int argc, char **argv)
     starpu_task_wait_for_all(); //sync
 #endif
 
+    gettimeofday(&tv2, NULL);
+    printTime(tv1, tv2, "Phase I (local sort)");
+
     for (int i = 0; i < NUM_CPU; ++i)
     {
         starpu_data_unregister(blk_handles[i]);
         starpu_data_unregister(splitter_handles[i]);
     }
 
+    gettimeofday(&tv2, NULL);
     // Sort the splitters array
     qsort(splitters, NUM_CPU * (NUM_CPU - 1), sizeof(int), compare);
 
@@ -313,6 +332,9 @@ int main(int argc, char **argv)
 
     starpu_data_handle_t g_splitters_handle;
     starpu_vector_data_register(&g_splitters_handle, STARPU_MAIN_RAM, (uintptr_t)g_splitters, NUM_CPU - 1, sizeof(int));
+
+    gettimeofday(&tv1, NULL);
+    printTime(tv2, tv1, "Phase II (gather splitters)");
 
     // ********************************************/
     // III - Each processor sort data to buckets
@@ -426,6 +448,9 @@ int main(int argc, char **argv)
     for (int i = 1; i < NUM_CPU; ++i)
         sizes_redux[i] = sizes_redux[i - 1] + bucket_sizes[i - 1];
 
+    gettimeofday(&tv2, NULL);
+    printTime(tv1, tv2, "Phase III (collect buckets)");
+
     // ********************************************/
     // IV - Local sort each bucket
     int *out = new int[len];
@@ -460,7 +485,9 @@ int main(int argc, char **argv)
 #endif
 
     // End the timer
-    gettimeofday(&end, NULL);
+    gettimeofday(&tv1, NULL);
+    printTime(tv2, tv1, "Phase IV (sort buckets)");
+    printTime(tv0, tv1, "Total time");
 
     for (int i = 0; i < NUM_CPU; ++i)
     {
@@ -502,9 +529,12 @@ int main(int argc, char **argv)
     /* terminate StarPU */
     starpu_shutdown();
 
-    // print out execution time
-    unsigned long long exec_time = (end.tv_sec - begin.tv_sec) * 1000000L + (end.tv_usec - begin.tv_usec);
-    cout << "exec time: " << exec_time / 1000 << "ms" << endl;
+    // Verification
+    for (int i = 1; i < len; i++)
+        if (out[i] < out[i-1]) {
+            cout << "Verification failed\n";
+            break;
+        }
 
     if (argv[3] != NULL)
     {
