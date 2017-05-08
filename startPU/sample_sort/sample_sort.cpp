@@ -10,7 +10,7 @@
 
 using namespace std;
 
-define SYNC
+#define SYNC
 
 int NUM_CPU = 4;
 
