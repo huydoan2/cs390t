@@ -52,7 +52,7 @@ Legion Setup
 
    ```
    $ ./sample_sort -f input.txt -n 10 -b 2
-   $ ./sample_sort -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt -b 1 -ll:cpu 1
+   $ ./sample_sort -f /work/04009/yuhc/cs395t-data/data/inc_10M.txt -b 1 -ll:cpu 1 -ll:csize 10000
    ```
 
 
