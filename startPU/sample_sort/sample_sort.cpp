@@ -10,7 +10,7 @@
 
 using namespace std;
 
-#define SYNC
+//#define SYNC
 
 int NUM_CPU = 4;
 
@@ -93,6 +93,7 @@ struct starpu_codelet phaseI_codelet =
         .nbuffers = 2};
 
 // II - Get the global splitters
+/*
 void cpu_phaseII(void *buffers[], void *cl_arg)
 {
     // get the array and length
@@ -111,6 +112,7 @@ struct starpu_codelet phaseII_codelet =
         .cpu_funcs_name = {"cpu_phaseII"},
         .modes = {STARPU_R, STARPU_W},
         .nbuffers = 2};
+*/
 
 // III - Bucket sort
 void cpu_phaseIII(void *buffers[], void *cl_arg)
@@ -156,6 +158,7 @@ struct starpu_codelet phaseIII_codelet =
         .nbuffers = 3};
 
 // Get the size of each final bucket
+/*
 void cpu_get_size(void *buffers[], void *cl_arg)
 {
     // get the array and length
@@ -177,6 +180,7 @@ struct starpu_codelet get_size_codelet =
         .cpu_funcs_name = {"cpu_get_size"},
         .modes = {STARPU_R, STARPU_W},
         .nbuffers = 2};
+*/
 
 // IV - Local sort each block
 void cpu_phaseIV(void *buffers[], void *cl_arg)
@@ -305,12 +309,6 @@ int main(int argc, char **argv)
         //starpu_data_unregister(blk_handle);
         //starpu_data_unregister(splitter_handle);
     }
-#ifdef SYNC
-    starpu_task_wait_for_all(); //sync
-#endif
-
-    gettimeofday(&tv2, NULL);
-    printTime(tv1, tv2, "Phase I (local sort)");
 
     for (int i = 0; i < NUM_CPU; ++i)
     {
@@ -318,7 +316,13 @@ int main(int argc, char **argv)
         starpu_data_unregister(splitter_handles[i]);
     }
 
+#ifdef SYNC
+    starpu_task_wait_for_all(); //sync
+#endif
+
     gettimeofday(&tv2, NULL);
+    printTime(tv1, tv2, "Phase I (local sort)");
+
     // Sort the splitters array
     qsort(splitters, NUM_CPU * (NUM_CPU - 1), sizeof(int), compare);
 
@@ -480,9 +484,9 @@ int main(int argc, char **argv)
 
         starpu_data_unregister(out_handle);
     }
-#ifdef SYNC
+//#ifdef SYNC
     starpu_task_wait_for_all(); //sync
-#endif
+//#endif
 
     // End the timer
     gettimeofday(&tv1, NULL);

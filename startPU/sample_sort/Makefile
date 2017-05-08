@@ -1,7 +1,7 @@
 CC=clang++
 #CFLAGS			+= -gdwarf-2
 #CFLAGS		+= -ggdb
-CFLAGS          += $$(pkg-config --cflags starpu-1.2)
+CFLAGS          += $$(pkg-config --cflags starpu-1.2) -O3 
 LDFLAGS         += $$(pkg-config --libs starpu-1.2)
 
 OBJ1 = sample_sort.o
